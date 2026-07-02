@@ -26,7 +26,7 @@ def clean_text(text):
     cleaned = cleaned.replace("&lt;", "<").replace("&gt;", ">").replace("\\/", "/")
     return re.sub(r'\s+', ' ', cleaned).strip()
 
-def get_local_file_path(source_slug, url):
+def get_local_file_path(source_slug, url, custom_filename=None):
     """
     Retorna o caminho local para cachear o arquivo de edital/documento.
     Cria os diretórios necessários sob uploads/{source_slug}.
@@ -39,18 +39,31 @@ def get_local_file_path(source_slug, url):
     
     # Extrai o nome do arquivo a partir da URL
     parsed_url = urllib.parse.urlparse(url)
-    filename = os.path.basename(parsed_url.path)
+    url_filename = os.path.basename(parsed_url.path)
     
-    # Se não houver nome de arquivo válido ou extensão, gera usando hash md5
-    if not filename or "." not in filename:
-        url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
+    # Obtém a extensão original
+    ext = ""
+    if url_filename and "." in url_filename:
+        ext = os.path.splitext(url_filename)[1]
+    else:
         ext = ".pdf"
         if ".docx" in url.lower():
             ext = ".docx"
-        filename = f"{url_hash}{ext}"
+            
+    if custom_filename:
+        # Previne caracteres inválidos no sistema de arquivos para o nome customizado
+        filename = re.sub(r'[\\/*?:"<>|]', '_', custom_filename)
+        # Se não terminar com a extensão correta, adiciona ela
+        if not filename.lower().endswith(ext.lower()):
+            filename = f"{filename}{ext}"
     else:
-        # Previne caracteres inválidos no sistema de arquivos
-        filename = re.sub(r'[\\/*?:"<>|]', '_', filename)
+        filename = url_filename
+        # Se não houver nome de arquivo válido ou extensão, gera usando hash md5
+        if not filename or "." not in filename:
+            url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
+            filename = f"{url_hash}{ext}"
+        else:
+            filename = re.sub(r'[\\/*?:"<>|]', '_', filename)
         
     return os.path.join(dest_dir, filename)
 
@@ -349,7 +362,7 @@ def search_sanesul(name):
             if doc_url in _sanesul_doc_cache:
                 text_content = _sanesul_doc_cache[doc_url]
             else:
-                local_path = get_local_file_path("sanesul", doc_url)
+                local_path = get_local_file_path("sanesul", doc_url, custom_filename=doc_title)
                 file_content = None
                 if os.path.exists(local_path):
                     logger.info(f"Sanesul: Carregando arquivo do cache local: {local_path}")
@@ -476,7 +489,7 @@ def search_msgas(name):
             if doc_url in _msgas_doc_cache:
                 text_content = _msgas_doc_cache[doc_url]
             else:
-                local_path = get_local_file_path("msgas", doc_url)
+                local_path = get_local_file_path("msgas", doc_url, custom_filename=doc_title)
                 file_content = None
                 if os.path.exists(local_path):
                     logger.info(f"MS Gás: Carregando arquivo do cache local: {local_path}")
@@ -664,7 +677,7 @@ def search_dourados(name):
                             if url_date_match:
                                 pub_date = f"{url_date_match.group(1)}/{url_date_match.group(2)}/{url_date_match.group(3)}"
                         
-                        local_path = get_local_file_path("dourados", pdf_url)
+                        local_path = get_local_file_path("dourados", pdf_url, custom_filename=title_text)
                         file_content = None
                         if os.path.exists(local_path):
                             logger.info(f"DO-Dourados: Carregando PDF do cache local: {local_path}")

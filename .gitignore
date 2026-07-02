@@ -22,3 +22,6 @@ results.db
 
 parsers/
 uploads/
+logs/
+logs/*
+logs/app.log
