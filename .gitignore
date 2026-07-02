@@ -1,0 +1,24 @@
+# Python virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+
+# Local database
+results.db
+
+# VS Code / IDE configs
+.vscode/
+.idea/
+.pytest_cache/
+
+parsers/
+uploads/

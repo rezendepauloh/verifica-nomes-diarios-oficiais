@@ -1,0 +1,1 @@
+python -c "import sqlite3; conn = sqlite3.connect('results.db'); conn.cursor().execute('DELETE FROM processed_urls'); conn.commit(); conn.close()"
