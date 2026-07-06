@@ -8,6 +8,10 @@ from datetime import datetime
 import urllib.parse
 import os
 from dotenv import load_dotenv
+import urllib3
+
+# Desativa avisos de certificado SSL autoassinado/inválido
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Carrega as variáveis de ambiente
 load_dotenv()
@@ -456,7 +460,7 @@ def search_msgas(name):
     try:
         # 1. Recupera a página principal (usa cache em memória se disponível)
         if _msgas_html_cache is None:
-            response = requests.get(url, headers=HEADERS, timeout=15)
+            response = requests.get(url, headers=HEADERS, timeout=15, verify=False)
             if response.status_code == 200:
                 _msgas_html_cache = response.content
             else:
@@ -502,7 +506,7 @@ def search_msgas(name):
                 if file_content is None:
                     logger.info(f"MS Gás: Baixando e analisando novo arquivo: {doc_title}")
                     try:
-                        resp = requests.get(doc_url, headers=HEADERS, timeout=15)
+                        resp = requests.get(doc_url, headers=HEADERS, timeout=15, verify=False)
                         if resp.status_code == 200:
                             file_content = resp.content
                             try:
