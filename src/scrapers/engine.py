@@ -17,6 +17,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv()
 from src.logger import logger
 from src.database import is_url_processed, mark_url_processed
+from src.terminal import print_header, CYAN, GREEN, YELLOW
 
 # Configurações de headers para evitar bloqueios
 HEADERS = {
@@ -786,10 +787,15 @@ def scan_all_sources(names, active_sources=None):
         
     all_results = []
     logger.info(f"=== INICIANDO VARREDURA COMPLETA ({len(names)} nomes) ===")
-    for name in names:
+    for idx, name in enumerate(names, 1):
         name = name.strip()
         if not name:
             continue
+            
+        # Divisor visual destacado no terminal para o nome em consulta
+        print_header(f"BUSCANDO [{idx}/{len(names)}]: {name.upper()}", color=CYAN, width=70)
+        logger.info(f"Consultando diários oficiais para: {name}")
+
         if active_sources.get("dou"):
             all_results.extend(search_dou(name))
         if active_sources.get("doms"):
@@ -804,7 +810,10 @@ def scan_all_sources(names, active_sources=None):
             all_results.extend(search_crbm(name))
         if active_sources.get("dourados"):
             all_results.extend(search_dourados(name))
+            
+    print_header(f"VARREDURA FINALIZADA: {len(all_results)} OCORRÊNCIAS ENCONTRADAS", color=GREEN, width=70)
     logger.success(f"=== VARREDURA COMPLETA FINALIZADA. TOTAL DE OCORRÊNCIAS ENCONTRADAS: {len(all_results)} ===")
     return all_results
+
 
 
