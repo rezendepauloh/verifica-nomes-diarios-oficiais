@@ -15,14 +15,37 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Carrega as variáveis de ambiente
 load_dotenv()
-from logger_config import logger
+from src.logger import logger
+from src.database import is_url_processed, mark_url_processed
 
 # Configurações de headers para evitar bloqueios
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
+import time
+
+def safe_download(url: str, timeout: int = 15, verify: bool = True, pause: float = 0.3):
+    """
+    Realiza download seguro de arquivos com:
+    1. Normalização e codificação de caracteres acentuados e espaços no path da URL.
+    2. Intervalo de cortesia (rate limiting) para evitar bloqueios por excesso de requisições.
+    """
+    if pause > 0:
+        time.sleep(pause)
+        
+    try:
+        # Codifica caracteres não-ASCII no caminho da URL (ex: acentos em PDFs do WordPress)
+        parsed = urllib.parse.urlsplit(url)
+        safe_path = urllib.parse.quote(parsed.path, safe="/:@&+$,")
+        safe_url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, safe_path, parsed.query, parsed.fragment))
+    except Exception:
+        safe_url = url
+
+    return requests.get(safe_url, headers=HEADERS, timeout=timeout, verify=verify)
+
 def clean_text(text):
+
     if not text:
         return ""
     # Remove marcações de highlight como <span class='highlight'> que o DOU injeta no resumo
@@ -379,7 +402,7 @@ def search_sanesul(name):
                 if file_content is None:
                     logger.info(f"Sanesul: Baixando e analisando novo arquivo: {doc_title}")
                     try:
-                        resp = requests.get(doc_url, headers=HEADERS, timeout=15)
+                        resp = safe_download(doc_url, timeout=15)
                         if resp.status_code == 200:
                             file_content = resp.content
                             try:
@@ -387,6 +410,11 @@ def search_sanesul(name):
                                     lf.write(file_content)
                             except Exception as fe:
                                 logger.error(f"Erro ao salvar arquivo cache local {local_path}: {fe}")
+                        elif resp.status_code == 404:
+                            logger.warning(f"Arquivo inexistente na Sanesul (HTTP 404): {doc_url}")
+                            # Marca como processado para não tentar baixar novamente no futuro
+                            mark_url_processed(doc_url, name)
+                            continue
                         else:
                             logger.warning(f"Erro ao baixar arquivo {doc_url}: HTTP {resp.status_code}")
                     except Exception as file_err:
@@ -429,8 +457,8 @@ def search_sanesul(name):
                 })
             
             # Marca a URL como processada para este nome no banco de dados
-            if doc_url in _sanesul_doc_cache:
-                mark_url_processed(doc_url, name)
+            mark_url_processed(doc_url, name)
+
                 
         logger.info(f"Busca Sanesul finalizada para {name}. Novas ocorrências encontradas: {len(results)}")
     except Exception as e:
@@ -506,7 +534,7 @@ def search_msgas(name):
                 if file_content is None:
                     logger.info(f"MS Gás: Baixando e analisando novo arquivo: {doc_title}")
                     try:
-                        resp = requests.get(doc_url, headers=HEADERS, timeout=15, verify=False)
+                        resp = safe_download(doc_url, timeout=15, verify=False)
                         if resp.status_code == 200:
                             file_content = resp.content
                             try:
@@ -514,6 +542,10 @@ def search_msgas(name):
                                     lf.write(file_content)
                             except Exception as fe:
                                 logger.error(f"Erro ao salvar arquivo cache local {local_path}: {fe}")
+                        elif resp.status_code == 404:
+                            logger.warning(f"Arquivo inexistente na MS Gás (HTTP 404): {doc_url}")
+                            mark_url_processed(doc_url, name)
+                            continue
                         else:
                             logger.warning(f"Erro ao baixar arquivo {doc_url}: HTTP {resp.status_code}")
                     except Exception as file_err:
@@ -556,8 +588,8 @@ def search_msgas(name):
                 })
             
             # Marca a URL como processada para este nome no banco de dados
-            if doc_url in _msgas_doc_cache:
-                mark_url_processed(doc_url, name)
+            mark_url_processed(doc_url, name)
+
                 
         logger.info(f"Busca MS Gás finalizada para {name}. Novas ocorrências encontradas: {len(results)}")
     except Exception as e:
@@ -693,7 +725,7 @@ def search_dourados(name):
                                 
                         if file_content is None:
                             logger.info(f"DO-Dourados: Baixando PDF da edição: {pdf_url}")
-                            pdf_resp = requests.get(pdf_url, headers=HEADERS, timeout=15)
+                            pdf_resp = safe_download(pdf_url, timeout=15)
                             if pdf_resp.status_code == 200:
                                 file_content = pdf_resp.content
                                 try:
@@ -701,6 +733,10 @@ def search_dourados(name):
                                         lf.write(file_content)
                                 except Exception as fe:
                                     logger.error(f"Erro ao salvar arquivo cache local {local_path}: {fe}")
+                            elif pdf_resp.status_code == 404:
+                                logger.warning(f"PDF inexistente no DO-Dourados (HTTP 404): {pdf_url}")
+                                mark_url_processed(pdf_url, name)
+                                continue
                             else:
                                 logger.warning(f"Erro ao baixar PDF {pdf_url}: HTTP {pdf_resp.status_code}")
                                 
@@ -711,6 +747,7 @@ def search_dourados(name):
                                     text_content = "\n".join([page.extract_text() or "" for page in pdf.pages])
                             except Exception as pdf_err:
                                 logger.error(f"Erro ao ler PDF do DO-Dourados ({pdf_url}): {pdf_err}")
+
                                 
                             if text_content and name.lower() in text_content.lower():
                                 lines = text_content.split("\n")

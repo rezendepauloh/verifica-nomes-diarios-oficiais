@@ -1,21 +1,26 @@
 import sys
 import os
 import json
-import tempfile
 from pathlib import Path
 from dotenv import load_dotenv
+
+# Adiciona a raiz do projeto e src/ no path
+ROOT_DIR = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+sys.path.insert(0, str(ROOT_DIR / "src"))
+
 
 # Carrega variáveis de ambiente
 load_dotenv()
 
-# Importações locais
-from database import init_db, save_occurrence
-from scraper import scan_all_sources
-from logger_config import logger
+# Importações dos módulos estruturados em src
+from src.database import init_db, save_occurrence
+from src.scrapers import scan_all_sources
+from src.logger import logger
+from src.config import get_lock_file, get_monitored_names
 
 def main():
-    # Cria arquivo de lock no Windows
-    lock_file = Path(tempfile.gettempdir()) / "diarios_oficiais_scan.lock"
+    lock_file = get_lock_file()
     
     # Grava o PID atual no lock
     try:
@@ -24,6 +29,7 @@ def main():
     except Exception as e:
         logger.error(f"Erro ao criar arquivo de lock: {e}")
         sys.exit(1)
+
         
     try:
         logger.info("Varredora em segundo plano iniciada...")
@@ -44,11 +50,10 @@ def main():
                 monitored_names = json.loads(sys.argv[2])
             except Exception as e:
                 logger.error(f"Erro ao parsear selected_names JSON: {e}")
-                names_env = os.getenv("MONITOR_NAMES", "Paulo Henrique Gonçalves Rezende,Kamila dos Santos Arteman")
-                monitored_names = [name.strip() for name in names_env.split(",") if name.strip()]
+                monitored_names = get_monitored_names()
         else:
-            names_env = os.getenv("MONITOR_NAMES", "Paulo Henrique Gonçalves Rezende,Kamila dos Santos Arteman")
-            monitored_names = [name.strip() for name in names_env.split(",") if name.strip()]
+            monitored_names = get_monitored_names()
+
         
         init_db()
         found_items = scan_all_sources(monitored_names, selected_sources)

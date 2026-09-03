@@ -1,0 +1,28 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: verifica-diarios-app
+    restart: unless-stopped
+    ports:
+      - "${PORT}:${PORT}"
+    env_file:
+      - .env
+    volumes:
+      # Sincroniza o código para desenvolvimento em tempo real (hot-reload)
+      - .:/app
+      # Protege para não sobrescrever as dependências instaladas no container
+      - /app/.venv
+      # Persistência de banco e logs
+      - ./results.db:/app/results.db
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    environment:
+      - PORT=${PORT}
+      - STREAMLIT_SERVER_PORT=${PORT}
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+
+

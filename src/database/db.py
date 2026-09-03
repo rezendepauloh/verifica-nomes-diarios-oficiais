@@ -1,12 +1,20 @@
+# -*- coding: utf-8 -*-
+"""
+Camada de acesso e gerenciamento do banco de dados SQLite.
+"""
 import sqlite3
 import os
-from logger_config import logger
+from pathlib import Path
+from src.logger import logger
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "results.db")
+DB_PATH = Path(__file__).parent.parent.parent / "results.db"
+
+def get_connection():
+    return sqlite3.connect(str(DB_PATH))
 
 def init_db():
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS occurrences (
@@ -38,7 +46,7 @@ def init_db():
 
 def is_url_processed(url, name):
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM processed_urls WHERE url = ? AND name = ?", (url, name))
         row = cursor.fetchone()
@@ -52,7 +60,7 @@ def is_url_processed(url, name):
 
 def mark_url_processed(url, name):
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("INSERT OR IGNORE INTO processed_urls (url, name) VALUES (?, ?)", (url, name))
         conn.commit()
@@ -63,9 +71,9 @@ def mark_url_processed(url, name):
             conn.close()
 
 def save_occurrence(name, source, date_str, link, context):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
     try:
+        conn = get_connection()
+        cursor = conn.cursor()
         cursor.execute("""
             INSERT OR IGNORE INTO occurrences (name, source, date, link, context)
             VALUES (?, ?, ?, ?, ?)
@@ -76,11 +84,12 @@ def save_occurrence(name, source, date_str, link, context):
     except Exception as e:
         logger.error(f"Erro ao salvar ocorrência no banco para {name} em {source}: {e}")
     finally:
-        conn.close()
+        if 'conn' in locals():
+            conn.close()
 
 def get_occurrences():
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, source, date, link, context, status, created_at FROM occurrences ORDER BY created_at DESC")
         rows = cursor.fetchall()
@@ -94,7 +103,7 @@ def get_occurrences():
 
 def update_status(occurrence_id, status):
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("UPDATE occurrences SET status = ? WHERE id = ?", (status, occurrence_id))
         conn.commit()
@@ -105,10 +114,9 @@ def update_status(occurrence_id, status):
         if 'conn' in locals():
             conn.close()
 
-
 def update_status_bulk(ids, status):
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.executemany("UPDATE occurrences SET status = ? WHERE id = ?", [(status, occ_id) for occ_id in ids])
         conn.commit()
@@ -118,6 +126,3 @@ def update_status_bulk(ids, status):
     finally:
         if 'conn' in locals():
             conn.close()
-
-
-
