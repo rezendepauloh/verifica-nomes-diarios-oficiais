@@ -76,10 +76,102 @@ open_browser() {
 
 cleanup() {
     trap - INT TERM EXIT
+    tput cnorm 2>/dev/null
+    local rows
+    rows=$(tput lines 2>/dev/null || echo 24)
+    printf "\033[1;%dr" "$rows" 2>/dev/null
+    printf "\033[%d;1H\n" "$rows" 2>/dev/null
+
     echo ""
     echo -e "${C_YELLOW}Encerrando containers do Verificador de Diários...${C_RESET}"
     docker compose down
+    echo -e "${C_GREEN}[OK] Containers finalizados com sucesso.${C_RESET}"
     exit 0
+}
+
+# Desenha a barra fixa no rodapé da janela do terminal
+render_bottom_toolbar() {
+    local rows
+    rows=$(tput lines 2>/dev/null || echo 24)
+    local cols
+    cols=$(tput cols 2>/dev/null || echo 80)
+    local sep_len=$(( cols - 2 ))
+    [ $sep_len -lt 10 ] && sep_len=70
+
+    # Salva posição do cursor e desce para as duas últimas linhas
+    tput sc 2>/dev/null
+    printf "\033[%d;1H" $(( rows - 1 ))
+    echo -ne "${C_GRAY}─${C_RESET}"
+    printf "${C_GRAY}%%0.s─${C_RESET}" $(seq 1 $sep_len)
+    printf "\033[K\n"
+    printf " ${C_BOLD}[c]${C_RESET} ${C_YELLOW}Limpar Logs${C_RESET} | ${C_BOLD}[s]${C_RESET} ${C_CYAN}Varredura${C_RESET} | ${C_BOLD}[r]${C_RESET} ${C_MAGENTA}Reiniciar App${C_RESET} | ${C_BOLD}[b]${C_RESET} ${C_GREEN}Navegador${C_RESET} | ${C_BOLD}[q]${C_RESET} ${C_RED}Encerrar${C_RESET}\033[K"
+    tput rc 2>/dev/null
+}
+
+setup_terminal_split() {
+    local rows
+    rows=$(tput lines 2>/dev/null || echo 24)
+    # Define a região de rolagem (scrolling region) da linha 1 até (rows - 2)
+    # Assim, os logs nunca sobrescrevem as duas linhas de baixo!
+    printf "\033[1;%dr" $(( rows - 2 )) 2>/dev/null
+    render_bottom_toolbar
+}
+
+stream_interactive_logs() {
+    local LOG_PID=""
+
+    setup_terminal_split
+    trap 'setup_terminal_split' WINCH
+
+    docker compose logs -f --tail=100 app &
+    LOG_PID=$!
+
+    while kill -0 "$LOG_PID" 2>/dev/null; do
+        if read -r -s -n 1 -t 1 key; then
+            case "$key" in
+                c|C)
+                    clear
+                    setup_terminal_split
+                    ;;
+                s|S)
+                    kill "$LOG_PID" 2>/dev/null
+                    # Restaura terminal temporariamente para varredura interativa
+                    local rows
+                    rows=$(tput lines 2>/dev/null || echo 24)
+                    printf "\033[1;%dr" "$rows" 2>/dev/null
+                    clear
+                    echo -e "${C_CYAN}Disparando varredura manual no container...${C_RESET}"
+                    docker compose exec app python src/run_scan.py
+                    echo ""
+                    echo -e "${C_GREEN}Varredura concluída! Retornando aos logs em 3s...${C_RESET}"
+                    sleep 3
+                    clear
+                    setup_terminal_split
+                    docker compose logs -f --tail=50 app &
+                    LOG_PID=$!
+                    ;;
+                r|R)
+                    kill "$LOG_PID" 2>/dev/null
+                    clear
+                    echo -e "${C_YELLOW}Reiniciando serviço da aplicação...${C_RESET}"
+                    docker compose restart app
+                    clear
+                    setup_terminal_split
+                    docker compose logs -f --tail=50 app &
+                    LOG_PID=$!
+                    ;;
+                b|B)
+                    open_browser "$PORT"
+                    ;;
+                q|Q)
+                    kill "$LOG_PID" 2>/dev/null
+                    cleanup
+                    ;;
+            esac
+        fi
+    done
+
+    wait "$LOG_PID" 2>/dev/null
 }
 
 check_auto_build() {
@@ -107,7 +199,7 @@ start_app() {
     check_auto_build
     open_browser "$PORT"
     trap cleanup INT TERM EXIT
-    docker compose logs -f --tail=50 app
+    stream_interactive_logs
 }
 
 run_scan_manual() {
@@ -134,9 +226,10 @@ rebuild_docker() {
 }
 
 view_logs() {
+    load_env_file
     clear
-    echo -e "${C_CYAN}Exibindo logs em tempo real (Ctrl+C para sair)...${C_RESET}"
-    docker compose logs -f --tail=100 app
+    trap cleanup INT TERM EXIT
+    stream_interactive_logs
 }
 
 stop_system() {
