@@ -10,19 +10,13 @@ services:
     env_file:
       - .env
     volumes:
-      # Sincroniza o código para desenvolvimento em tempo real (hot-reload)
-      - .:/app
-      # Protege para não sobrescrever as dependências instaladas no container
-      - /app/.venv
-      # Persistência de banco e logs
       - ./data:/app/data
       - ./logs:/app/logs
       - ./uploads:/app/uploads
     environment:
+      - APP_ENV=prod
       - PORT=${PORT}
       - STREAMLIT_SERVER_PORT=${PORT}
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
       - STREAMLIT_SERVER_HEADLESS=true
       - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-
-

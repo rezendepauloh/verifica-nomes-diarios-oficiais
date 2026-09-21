@@ -6,11 +6,16 @@ import sqlite3
 import os
 from pathlib import Path
 from src.logger import logger
-
-DB_PATH = Path(__file__).parent.parent.parent / "results.db"
+from src.config import DB_PATH
 
 def get_connection():
-    return sqlite3.connect(str(DB_PATH))
+    # Garante que o diretório pai do banco de dados exista antes de conectar
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        return sqlite3.connect(str(DB_PATH), timeout=30.0)
+    except Exception as e:
+        logger.error(f"Falha ao conectar no SQLite [DB_PATH={DB_PATH}]: {e}")
+        raise
 
 def init_db():
     try:

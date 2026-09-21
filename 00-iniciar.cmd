@@ -15,6 +15,8 @@ if /i "%~1"=="-r" goto :rebuild_docker
 if /i "%~1"=="--down" goto :stop_system
 if /i "%~1"=="--stop" goto :stop_system
 if /i "%~1"=="-d" goto :stop_system
+if /i "%~1"=="--deploy" goto :deploy_homelab
+if /i "%~1"=="-dp" goto :deploy_homelab
 if /i "%~1"=="--help" goto :show_help
 if /i "%~1"=="-h" goto :show_help
 
@@ -30,21 +32,24 @@ echo   2 - Disparar varredura manual (run_scan.py)
 echo   3 - Ver logs do container em tempo real
 echo   4 - Reconstruir Docker Compose (--no-cache)
 echo   5 - Parar sistema (docker compose down)
+echo   6 - Deploy no Mini PC (Dockge / Homelab via WSL/Bash)
 echo   0 - Sair
 echo.
 echo ================================================================
-set /p "OPCAO=Opcao [0-5]: "
+set /p "OPCAO=Opcao [0-6]: "
 
 if "%OPCAO%"=="1" goto :start_app
 if "%OPCAO%"=="2" goto :run_scan_manual
 if "%OPCAO%"=="3" goto :view_logs
 if "%OPCAO%"=="4" goto :rebuild_docker
 if "%OPCAO%"=="5" goto :stop_system
+if "%OPCAO%"=="6" goto :deploy_homelab
 if "%OPCAO%"=="0" exit /b 0
 
 echo Opcao invalida.
 timeout /t 1 >nul
 goto :show_menu
+
 
 :setup_docker_and_env
 set "PORT="
@@ -143,6 +148,24 @@ echo Containers encerrados com sucesso!
 pause
 exit /b 0
 
+:deploy_homelab
+cls
+echo Iniciando deploy no Mini PC atraves do script bash (WSL)...
+where wsl >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    wsl.exe bash ./00-iniciar.sh --deploy
+) else (
+    where bash >nul 2>nul
+    if %ERRORLEVEL% equ 0 (
+        bash ./00-iniciar.sh --deploy
+    ) else (
+        echo [ERRO] WSL ou Git Bash nao encontrados para executar o script de deploy.
+        echo Por favor execute o comando diretamente pelo terminal WSL/Linux.
+        pause
+    )
+)
+exit /b 0
+
 :show_help
 echo Uso: 00-iniciar.cmd [OPCAO]
 echo.
@@ -152,6 +175,7 @@ echo   --scan                   Dispara uma varredura manual
 echo   --logs, -l               Exibe os logs do container
 echo   --rebuild, -r            Reconstroi a imagem Docker (--no-cache)
 echo   --down, -d               Para os containers do sistema
+echo   --deploy, -dp            Executa deploy no Mini PC (Dockge / Homelab)
 echo   --help, -h               Exibe esta ajuda
 echo   (sem argumentos)         Abre o menu interativo
 exit /b 0

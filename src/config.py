@@ -15,7 +15,11 @@ load_dotenv()
 ROOT_DIR = Path(__file__).parent.parent
 LOGS_DIR = ROOT_DIR / "logs"
 ASSETS_DIR = ROOT_DIR / "assets"
-DB_PATH = ROOT_DIR / "results.db"
+DATA_DIR = ROOT_DIR / "data"
+if (DATA_DIR / "results.db").exists() or DATA_DIR.exists() or os.getenv("APP_ENV") == "prod":
+    DB_PATH = DATA_DIR / "results.db"
+else:
+    DB_PATH = ROOT_DIR / "results.db"
 
 PORT = os.getenv("PORT", "")
 
