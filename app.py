@@ -28,24 +28,43 @@ if css_path.exists():
 
 # Importações dos módulos estruturados em src
 from src.database import init_db, get_occurrences
-from src.components import render_header, render_sidebar, render_metrics, render_scan_control
-from src.tabs import render_dashboard_tab
+from src.scheduler import start_scheduler_if_not_running
+from src.components import render_header, render_sidebar, render_metrics, render_scan_control, render_subtabs
+from src.tabs import render_dashboard_tab, render_configuracoes_tab
 
-# 1. Inicializa o banco de dados
+# 1. Inicializa o banco de dados e seed
 init_db()
 
-# 2. Renderiza o cabeçalho
+# 2. Inicia o agendador em background (Thread Singleton)
+start_scheduler_if_not_running()
+
+# 3. Renderiza o cabeçalho
 render_header()
 
 # 3. Renderiza a barra lateral e obtém os filtros
 active_names, selected_sources = render_sidebar()
 
-# 4. Obtém ocorrências e renderiza os cards de métricas
-occurrences = get_occurrences()
-render_metrics(occurrences)
+# 4. Navegação Principal por Abas
+MAIN_TABS = {
+    "dashboard": "📋 Painel & Ocorrências",
+    "configuracoes": "⚙️ Configurações & Fontes"
+}
 
-# 5. Renderiza os controles de varredura (botão / logs de progresso)
-render_scan_control(selected_sources, active_names)
+active_main_tab = render_subtabs(MAIN_TABS, default_slug="dashboard", key="top_navigation_tab")
+st.markdown("<br>", unsafe_allow_html=True)
 
-# 6. Renderiza a tabela de ocorrências e gráfico
-render_dashboard_tab(occurrences)
+if active_main_tab == "dashboard":
+    # 5. Obtém ocorrências e renderiza os cards de métricas
+    occurrences = get_occurrences()
+    render_metrics(occurrences)
+
+    # 6. Renderiza os controles de varredura (botão / logs de progresso)
+    render_scan_control(selected_sources, active_names)
+
+    # 7. Renderiza a tabela de ocorrências e gráfico
+    render_dashboard_tab(occurrences)
+
+elif active_main_tab == "configuracoes":
+    # Renderiza a página completa de configurações
+    render_configuracoes_tab()
+

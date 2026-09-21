@@ -24,9 +24,18 @@ else:
 PORT = os.getenv("PORT", "")
 
 def get_monitored_names():
-    """Retorna lista de nomes monitorados do .env."""
+    """Retorna lista de nomes monitorados ativos do SQLite, com fallback para o .env."""
+    try:
+        from src.database.db import get_active_monitored_names
+        names = get_active_monitored_names()
+        if names:
+            return names
+    except Exception:
+        pass
+
     names_env = os.getenv("MONITOR_NAMES", "")
     return [name.strip() for name in names_env.split(",") if name.strip()]
+
 
 def get_lock_file() -> Path:
     """Retorna o caminho do arquivo de lock da varredura."""

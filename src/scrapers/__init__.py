@@ -1,5 +1,7 @@
 from .engine import (
     scan_all_sources,
+    AVAILABLE_SCRAPERS,
+    is_scraper_implemented,
     search_dou,
     search_doms,
     search_ifms,

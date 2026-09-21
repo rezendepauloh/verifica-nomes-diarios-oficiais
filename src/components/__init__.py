@@ -3,3 +3,7 @@ from .sidebar import render_sidebar
 from .metrics import render_metrics
 from .scan_control import render_scan_control
 from .details_modal import show_occurrence_details
+from .subtabs import render_subtabs
+from .metric_cards import render_metric_card, render_metric_cards
+
+

@@ -778,12 +778,63 @@ def search_dourados(name):
     return results
 
 
+AVAILABLE_SCRAPERS = {
+    "dou": {
+        "func": search_dou,
+        "label": "Diário Oficial da União (DOU)",
+        "has_scraper": True,
+        "description": "Varredura na página de busca pública da Imprensa Nacional"
+    },
+    "doms": {
+        "func": search_doms,
+        "label": "Diário Oficial de MS (DO-MS)",
+        "has_scraper": True,
+        "description": "Consumo direto da API REST oficial de diários de MS"
+    },
+    "ifms": {
+        "func": search_ifms,
+        "label": "IFMS (SUAP)",
+        "has_scraper": True,
+        "description": "Busca autenticada via POST nos Boletins de Serviço do SUAP"
+    },
+    "sanesul": {
+        "func": search_sanesul,
+        "label": "Sanesul (Concursos)",
+        "has_scraper": True,
+        "description": "Download e busca textual em memória de editais PDF e DOCX"
+    },
+    "msgas": {
+        "func": search_msgas,
+        "label": "MS Gás (Concursos)",
+        "has_scraper": True,
+        "description": "Parsing e leitura de editais de processos seletivos e seleções"
+    },
+    "crbm": {
+        "func": search_crbm,
+        "label": "CRBM 1ª Região",
+        "has_scraper": True,
+        "description": "Pesquisa textual em notícias e artigos do conselho regional"
+    },
+    "dourados": {
+        "func": search_dourados,
+        "label": "Diário Oficial de Dourados (DO-Dourados)",
+        "has_scraper": True,
+        "description": "Download e varredura textual em PDFs de edições municipais"
+    },
+}
+
+def is_scraper_implemented(slug: str) -> bool:
+    """Verifica se o slug possui função de scraper implementada no motor."""
+    scraper_info = AVAILABLE_SCRAPERS.get(slug.lower().strip())
+    return scraper_info is not None and scraper_info.get("has_scraper", False)
+
 def scan_all_sources(names, active_sources=None):
     """
     Executa a varredura das fontes selecionadas para a lista de nomes fornecida.
+    Suporta fontes dinâmicas cadastradas no banco de dados.
     """
     if active_sources is None:
-        active_sources = {"dou": True, "doms": True, "ifms": True, "sanesul": True, "msgas": True, "crbm": True, "dourados": True}
+        active_sources = {k: True for k in AVAILABLE_SCRAPERS.keys()}
         
     all_results = []
     logger.info(f"=== INICIANDO VARREDURA COMPLETA ({len(names)} nomes) ===")
@@ -796,24 +847,26 @@ def scan_all_sources(names, active_sources=None):
         print_header(f"BUSCANDO [{idx}/{len(names)}]: {name.upper()}", color=CYAN, width=70)
         logger.info(f"Consultando diários oficiais para: {name}")
 
-        if active_sources.get("dou"):
-            all_results.extend(search_dou(name))
-        if active_sources.get("doms"):
-            all_results.extend(search_doms(name))
-        if active_sources.get("ifms"):
-            all_results.extend(search_ifms(name))
-        if active_sources.get("sanesul"):
-            all_results.extend(search_sanesul(name))
-        if active_sources.get("msgas"):
-            all_results.extend(search_msgas(name))
-        if active_sources.get("crbm"):
-            all_results.extend(search_crbm(name))
-        if active_sources.get("dourados"):
-            all_results.extend(search_dourados(name))
+        for slug, is_active in active_sources.items():
+            if not is_active:
+                continue
+                
+            clean_slug = slug.lower().strip()
+            if clean_slug in AVAILABLE_SCRAPERS and AVAILABLE_SCRAPERS[clean_slug].get("has_scraper"):
+                scraper_fn = AVAILABLE_SCRAPERS[clean_slug]["func"]
+                try:
+                    results = scraper_fn(name)
+                    all_results.extend(results)
+                except Exception as err:
+                    logger.error(f"Erro ao executar scraper '{clean_slug}' para {name}: {err}")
+            else:
+                # Fonte cadastrada sem scraper programado ainda
+                logger.warning(f"Fonte '{slug}' está ativa, mas ainda não possui função de scraper implementada. Pulando...")
             
     print_header(f"VARREDURA FINALIZADA: {len(all_results)} OCORRÊNCIAS ENCONTRADAS", color=GREEN, width=70)
     logger.success(f"=== VARREDURA COMPLETA FINALIZADA. TOTAL DE OCORRÊNCIAS ENCONTRADAS: {len(all_results)} ===")
     return all_results
+
 
 
 

@@ -26,3 +26,4 @@ logs/
 logs/*
 logs/app.log
 .docker_build_hash
+temp/

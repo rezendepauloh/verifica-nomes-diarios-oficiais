@@ -34,8 +34,10 @@ def main():
     try:
         logger.info("Varredora em segundo plano iniciada...")
         
-        # Lê os parâmetros passados por argumento
-        if len(sys.argv) > 1:
+        init_db()
+
+        # Lê os parâmetros passados por argumento ou carrega do SQLite
+        if len(sys.argv) > 1 and sys.argv[1] != "null":
             try:
                 selected_sources = json.loads(sys.argv[1])
             except Exception as e:
@@ -43,9 +45,14 @@ def main():
                 selected_sources = None
         else:
             selected_sources = None
+
+        if selected_sources is None:
+            from src.database import get_active_monitored_sources
+            active_src_dict = get_active_monitored_sources()
+            selected_sources = {slug: True for slug in active_src_dict.keys()}
             
         # Lê a lista de nomes ativos passados por argumento se disponível
-        if len(sys.argv) > 2:
+        if len(sys.argv) > 2 and sys.argv[2] != "null":
             try:
                 monitored_names = json.loads(sys.argv[2])
             except Exception as e:
@@ -54,8 +61,6 @@ def main():
         else:
             monitored_names = get_monitored_names()
 
-        
-        init_db()
         found_items = scan_all_sources(monitored_names, selected_sources)
         
         novos = 0

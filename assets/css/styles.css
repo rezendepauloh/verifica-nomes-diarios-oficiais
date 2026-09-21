@@ -1,18 +1,63 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
 
+/* ==========================================================================
+   SISTEMA DE VARIÁVEIS DE TEMA (CLARO & ESCURO) - PADRÃO AUTOMACAO-CHAMADOS-STI
+   ========================================================================== */
+:root {
+  --metric-bg: #1e222a;
+  --metric-border: #2d3139;
+  --metric-title-color: #9ca3af;
+  --metric-value-color: #ffffff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root,
+  body,
+  .stApp {
+    --metric-bg: #f8fafc;
+    --metric-border: #e2e8f0;
+    --metric-title-color: #475569;
+    --metric-value-color: #0f172a;
+  }
+}
+
+[data-theme='light'],
+.stApp[data-theme='light'],
+body[data-theme='light'] {
+  --metric-bg: #f8fafc !important;
+  --metric-border: #e2e8f0 !important;
+  --metric-title-color: #475569 !important;
+  --metric-value-color: #0f172a !important;
+}
+
+[data-theme='dark'],
+.stApp[data-theme='dark'],
+body[data-theme='dark'] {
+  --metric-bg: #1e222a !important;
+  --metric-border: #2d3139 !important;
+  --metric-title-color: #9ca3af !important;
+  --metric-value-color: #ffffff !important;
+}
+
 /* Global Styles */
 html, body, [data-testid="stAppViewContainer"] {
     font-family: 'Outfit', sans-serif;
 }
 
+/* Oculta botão de Deploy nativo do Streamlit */
+[data-testid='stAppDeployButton'],
+.stAppDeployButton {
+    display: none !important;
+}
+
 /* Custom header design */
 .header-container {
     background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-    padding: 2.5rem;
+    padding: 2.2rem 2.5rem;
     border-radius: 16px;
     color: white;
-    margin-bottom: 2rem;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    margin-bottom: 1.5rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
     position: relative;
     overflow: hidden;
 }
@@ -27,45 +72,132 @@ html, body, [data-testid="stAppViewContainer"] {
     pointer-events: none;
 }
 .header-title {
-    font-size: 2.8rem;
+    font-size: 2.5rem;
     font-weight: 800;
     margin: 0;
     letter-spacing: -0.5px;
 }
 .header-subtitle {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 300;
     opacity: 0.9;
-    margin-top: 0.5rem;
+    margin-top: 0.4rem;
 }
 
-/* Metric Card styling */
+/* ==========================================================================
+   CARDS DE MÉTRICAS (KPIs) - COMPONENTE REUTILIZÁVEL
+   ========================================================================== */
 .metric-card {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    border-left: 5px solid #2a5298;
-    transition: transform 0.2s ease;
+    background-color: var(--metric-bg, #1e222a) !important;
+    padding: 18px 20px !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+    border-left: 5px solid #3b82f6;
+    border-top: 1px solid var(--metric-border, #2d3139) !important;
+    border-right: 1px solid var(--metric-border, #2d3139) !important;
+    border-bottom: 1px solid var(--metric-border, #2d3139) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    margin-bottom: 15px !important;
 }
 .metric-card:hover {
-    transform: translateY(-5px);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12) !important;
 }
 .metric-title {
-    font-size: 0.9rem;
-    color: #6c757d;
-    text-transform: uppercase;
-    font-weight: 600;
-    letter-spacing: 0.5px;
+    font-size: 0.85rem !important;
+    color: var(--metric-title-color, #9ca3af) !important;
+    text-transform: uppercase !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.5px !important;
+    margin-bottom: 6px !important;
 }
 .metric-value {
-    font-size: 2.2rem;
-    font-weight: 800;
-    color: #212529;
-    margin-top: 0.2rem;
+    font-size: 2.1rem !important;
+    font-weight: 800 !important;
+    color: var(--metric-value-color, #ffffff) !important;
+    line-height: 1.2 !important;
 }
 
-/* Table modifications */
+/* ==========================================================================
+   NAVEGAÇÃO POR SUBTABS / RADIOS ESTILIZADOS (PADRÃO AUTOMACAO-CHAMADOS-STI)
+   Adaptação 100% dinâmica ao tema claro e tema escuro
+   ========================================================================== */
+div[data-testid='stRadio']>div[role='radiogroup'],
+div[data-testid='stRadioGroup'] {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 24px !important;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2) !important;
+    padding-bottom: 0px !important;
+    margin-bottom: 20px !important;
+}
+
+/* Oculta as bolinhas nativas do radio do Streamlit */
+div[class*="etak9234"],
+div[class*="etak9235"],
+div[data-testid="stRadio"] label>div:first-child:not([data-testid="stMarkdownContainer"]),
+div[data-testid="stRadioGroup"] label>div:first-child:not([data-testid="stMarkdownContainer"]),
+label[data-testid="stRadioOption"]>div:first-child:not([data-testid="stMarkdownContainer"]),
+label[data-baseweb="radio"]>div:first-child:not([data-testid="stMarkdownContainer"]),
+div[data-testid="stRadio"] label>div[aria-hidden="true"],
+div[data-testid="stRadioGroup"] label>div[aria-hidden="true"],
+div[data-testid="stRadio"] input[type="radio"],
+div[data-testid="stRadioGroup"] input[type="radio"] {
+    display: none !important;
+}
+
+/* Estilo do texto inativo (Aba não selecionada com cor adaptável ao tema) */
+div[data-testid="stRadio"]>div[role="radiogroup"]>label,
+div[data-testid="stRadioGroup"]>label,
+label[data-testid="stRadioOption"] {
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    border-radius: 0 !important;
+    padding: 8px 4px !important;
+    color: var(--metric-title-color, #94a3b8) !important;
+    opacity: 0.75 !important;
+    cursor: pointer !important;
+    margin: 0 !important;
+    transition: all 0.2s ease !important;
+}
+
+div[data-testid="stRadio"] div[data-testid="stMarkdownContainer"] p,
+div[data-testid="stRadioGroup"] div[data-testid="stMarkdownContainer"] p {
+    font-size: 1.05rem !important;
+    margin: 0 !important;
+    color: inherit !important;
+}
+
+/* Hover na aba */
+div[data-testid="stRadio"]>div[role="radiogroup"]>label:hover,
+div[data-testid="stRadioGroup"]>label:hover,
+label[data-testid="stRadioOption"]:hover {
+    color: #3b82f6 !important;
+    opacity: 1 !important;
+}
+
+/* Aba Ativa (Indicador com linha azul moderna e texto destacado) */
+label[data-testid="stRadioOption"]:has(input:checked),
+label[data-testid="stRadioOption"][data-selected="true"],
+label[data-testid="stRadioOption"][aria-checked="true"],
+label[data-testid="stRadioOption"]:has(input[checked]),
+div[data-testid="stRadio"]>div[role="radiogroup"]>label:has(input:checked),
+div[data-testid="stRadioGroup"]>label:has(input:checked) {
+    color: #3b82f6 !important;
+    opacity: 1 !important;
+    border-bottom: 2px solid #3b82f6 !important;
+    font-weight: 700 !important;
+}
+
+/* Borda dos modais e tabelas */
+div[data-testid='stDialog']>div:first-child,
+div[role='dialog'] {
+    border: 1px solid rgba(59, 130, 246, 0.4) !important;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.15) !important;
+    border-radius: 12px !important;
+}
+
 .stDataFrame {
     border-radius: 12px;
 }
