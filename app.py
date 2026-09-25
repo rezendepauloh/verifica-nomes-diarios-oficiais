@@ -50,10 +50,15 @@ MAIN_TABS = {
     "configuracoes": "⚙️ Configurações & Fontes"
 }
 
-active_main_tab = render_subtabs(MAIN_TABS, default_slug="dashboard", key="top_navigation_tab")
+active_main_tab = render_subtabs(MAIN_TABS, default_slug="dashboard", key="top_navigation_tab", param_name="tab")
 st.markdown("<br>", unsafe_allow_html=True)
 
+# Se estiver no dashboard, remove o query_param subtab se existir, para manter a URL limpa
+if active_main_tab == "dashboard" and "subtab" in st.query_params:
+    del st.query_params["subtab"]
+
 if active_main_tab == "dashboard":
+
     # 5. Obtém ocorrências e renderiza os cards de métricas
     occurrences = get_occurrences()
     render_metrics(occurrences)

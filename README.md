@@ -39,11 +39,20 @@ O sistema conta com **Página Central de Configurações** para gestão de pesso
 ├── assets/
 │   └── css/
 │       └── styles.css          # Estilos CSS modernos e fontes (Outfit)
+├── tests/                      # Suíte de testes unitários automatizados (pytest)
+│   ├── conftest.py             # Fixtures de isolamento do banco SQLite em memória
+│   ├── test_database.py        # Testes de persistência, deduplicação e consultas
+│   ├── test_notifications.py   # Testes do CallMeBot e normalização de telefones
+│   ├── test_scheduler.py       # Testes de cálculo de agendamentos futuros
+│   └── test_scrapers.py        # Testes de limpeza de texto, JSON e robôs
 └── src/
     ├── run_scan.py             # Script de varredura em segundo plano (CLI / Subprocesso)
     ├── config.py               # Variáveis de ambiente, caminhos e controle de lock/processos
     ├── logger.py               # Logging com SafeStreamWrapper e ANSIColoredFormatter
     ├── terminal.py             # Utilitário de cores ANSI, molduras e formatação no console
+    ├── notifications/
+    │   ├── __init__.py
+    │   └── callmebot.py        # Integração e disparador de alertas WhatsApp via CallMeBot
     ├── database/
     │   ├── __init__.py
     │   └── db.py               # Camada de banco de dados SQLite (occurrences, names, sources, schedule)
@@ -61,11 +70,11 @@ O sistema conta com **Página Central de Configurações** para gestão de pesso
     │   ├── metrics.py          # Cards de indicadores (Total, Pendentes e Lidos)
     │   ├── metric_cards.py     # Componente flexível e adaptável ao tema claro/escuro de cards métricos
     │   ├── scan_control.py     # Botão e visualizador de progresso da varredura em background
-    │   └── details_modal.py    # Modal de detalhes da ocorrência e gerenciamento de status
+    │   └── details_modal.py    # Modal de detalhes da ocorrência e gerenciamento de status (width="large")
     └── tabs/
         ├── __init__.py
         ├── dashboard.py        # Tabela interativa com filtros dinâmicos e gráfico por fonte
-        └── configuracoes.py    # Gestão de Nomes, Telefones, Fontes, Agendamento Automático e Backup
+        └── configuracoes.py    # Gestão de Nomes, Telefones, WhatsApp, Fontes, Agendamento e Backup
 ```
 
 ---
@@ -89,7 +98,14 @@ O sistema elimina o acoplamento estático com o `.env` através da aba **⚙️ 
    - Definição de horários de execução diária no formato 24h (ex: `08:00`, ou múltiplos como `08:00, 14:00`).
    - Monitoramento em background autônomo sem travar a interface web e com prevenção de execuções concorrentes.
    - Botão para disparo de teste manual imediato.
-4. **💾 Sincronização & Migração**:
+4. **📲 Alertas e Notificações no WhatsApp (CallMeBot)**:
+   - Notificação automática no WhatsApp para cada pessoa monitorada assim que uma **nova ocorrência inédita** for detectada.
+   - Integração leve, rápida e gratuita via **CallMeBot**:
+     - Cada usuário obtém sua própria API Key enviando a mensagem `I allow callmebot to send me messages` para o WhatsApp **+34 694 23 41 84**.
+     - A chave é salva no cadastro do nome monitorado na aba Configurações.
+     - Botão de **"📲 Testar Envio"** em tempo real no modal para checar o funcionamento instantaneamente.
+     - Suporte opcional à variável `CALLMEBOT_API_KEY` no `.env` como chave global/fallback.
+5. **💾 Sincronização & Migração**:
    - Botão para reimportar dados do `.env` caso necessário, com migrações automáticas de schema relacional.
 
 ---
@@ -132,6 +148,7 @@ Atalhos úteis via CLI:
 - `./00-iniciar.sh --scan` : Executa uma varredura manual em segundo plano.
 - `./00-iniciar.sh --logs` : Acompanha os logs em tempo real do container.
 - `./00-iniciar.sh --rebuild` : Reconstrói a imagem Docker.
+- `./00-iniciar.sh --test` : Executa a suíte completa de testes unitários com pytest.
 - `./00-iniciar.sh --deploy` : Executa o pipeline de deploy automatizado no Homelab / Mini PC (Dockge).
 
 #### No Windows:

@@ -64,11 +64,39 @@ def main():
         found_items = scan_all_sources(monitored_names, selected_sources)
         
         novos = 0
+        notificados = 0
+        from src.database import get_whatsapp_notification_recipients
+        from src.notifications import send_whatsapp_message, format_occurrence_message
+
+        # Obtém todos os contatos ativos que devem receber alertas
+        recipients = get_whatsapp_notification_recipients()
+
         for item in found_items:
-            save_occurrence(item["name"], item["source"], item["date"], item["link"], item["context"])
-            novos += 1
-            
-        logger.success(f"Varredura em segundo plano concluída! {novos} ocorrências mapeadas e sincronizadas.")
+            is_new = save_occurrence(item["name"], item["source"], item["date"], item["link"], item["context"])
+            if is_new:
+                novos += 1
+                if recipients:
+                    msg_text = format_occurrence_message(
+                        name=item["name"],
+                        source=item["source"],
+                        date_str=item["date"],
+                        link=item.get("link", ""),
+                        context=item.get("context", "")
+                    )
+                    # Dispara alerta imediato para cada pessoa cadastrada (Broadcast)
+                    for rec in recipients:
+                        try:
+                            sent = send_whatsapp_message(
+                                phone=rec["phone"],
+                                message=msg_text,
+                                apikey=rec.get("callmebot_apikey")
+                            )
+                            if sent:
+                                notificados += 1
+                        except Exception as ex_notif:
+                            logger.error(f"Erro ao disparar WhatsApp para '{rec['name']}' ({rec['phone']}): {ex_notif}")
+
+        logger.success(f"Varredura concluída! {novos} novas ocorrências detectadas ({notificados} alertas WhatsApp enviados).")
         
     except Exception as e:
         logger.error(f"Erro na execução da varredura em segundo plano: {e}")

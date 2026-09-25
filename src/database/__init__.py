@@ -9,6 +9,7 @@ from .db import (
     seed_config_from_env_if_empty,
     get_all_monitored_names,
     get_active_monitored_names,
+    get_whatsapp_notification_recipients,
     add_monitored_name,
     update_monitored_name,
     toggle_monitored_name,

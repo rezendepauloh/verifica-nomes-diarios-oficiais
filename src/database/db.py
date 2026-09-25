@@ -74,9 +74,14 @@ def init_db():
             )
         """)
         
-        # Migração defensiva: garante que a coluna phone exista caso a tabela já tenha sido criada anteriormente
+        # Migração defensiva: garante que a coluna phone e callmebot_apikey existam
         try:
             cursor.execute("ALTER TABLE monitored_names ADD COLUMN phone TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # Coluna já existe
+
+        try:
+            cursor.execute("ALTER TABLE monitored_names ADD COLUMN callmebot_apikey TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # Coluna já existe
 
@@ -152,11 +157,11 @@ def seed_config_from_env_if_empty(force: bool = False):
 # ==============================================================================
 
 def get_all_monitored_names():
-    """Retorna todos os nomes cadastrados com id, nome, phone, active e created_at."""
+    """Retorna todos os nomes cadastrados com id, nome, phone, callmebot_apikey, active e created_at."""
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, phone, active, created_at FROM monitored_names ORDER BY name ASC")
+        cursor.execute("SELECT id, name, phone, callmebot_apikey, active, created_at FROM monitored_names ORDER BY name ASC")
         return cursor.fetchall()
     except Exception as e:
         logger.error(f"Erro ao buscar nomes monitorados: {e}")
@@ -180,16 +185,47 @@ def get_active_monitored_names():
         if 'conn' in locals():
             conn.close()
 
-def add_monitored_name(name: str, phone: str = "") -> bool:
+def get_whatsapp_notification_recipients():
+    """
+    Retorna todos os destinatários ativos que possuem telefone e API Key cadastrados
+    (ou chave global definida no .env).
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, phone, callmebot_apikey 
+            FROM monitored_names 
+            WHERE active = 1 AND phone != '' AND (callmebot_apikey != '' OR ? != '')
+        """, (os.getenv("CALLMEBOT_API_KEY", "").strip(),))
+        rows = cursor.fetchall()
+        return [
+            {
+                "id": r[0],
+                "name": r[1],
+                "phone": r[2],
+                "callmebot_apikey": r[3]
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Erro ao buscar destinatários de WhatsApp: {e}")
+        return []
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def add_monitored_name(name: str, phone: str = "", callmebot_apikey: str = "") -> bool:
     """Cadastra um novo nome monitorado."""
     clean_name = name.strip()
     clean_phone = phone.strip()
+    clean_key = callmebot_apikey.strip()
     if not clean_name:
         return False
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO monitored_names (name, phone, active) VALUES (?, ?, 1)", (clean_name, clean_phone))
+        cursor.execute("INSERT INTO monitored_names (name, phone, callmebot_apikey, active) VALUES (?, ?, ?, 1)", (clean_name, clean_phone, clean_key))
         conn.commit()
         logger.success(f"Nome monitorado cadastrado: {clean_name}")
         return True
@@ -203,16 +239,16 @@ def add_monitored_name(name: str, phone: str = "") -> bool:
         if 'conn' in locals():
             conn.close()
 
-def update_monitored_name(name_id: int, name: str, phone: str, active: int) -> bool:
+def update_monitored_name(name_id: int, name: str, phone: str, callmebot_apikey: str, active: int) -> bool:
     """Atualiza dados de um nome monitorado."""
     try:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE monitored_names
-            SET name = ?, phone = ?, active = ?
+            SET name = ?, phone = ?, callmebot_apikey = ?, active = ?
             WHERE id = ?
-        """, (name.strip(), phone.strip(), active, name_id))
+        """, (name.strip(), phone.strip(), callmebot_apikey.strip(), active, name_id))
         conn.commit()
         return True
     except Exception as e:
@@ -391,7 +427,12 @@ def mark_url_processed(url, name):
         if 'conn' in locals():
             conn.close()
 
-def save_occurrence(name, source, date_str, link, context):
+def save_occurrence(name, source, date_str, link, context) -> bool:
+    """
+    Salva uma ocorrência no banco.
+    Retorna True se for uma ocorrência inédita (inserida com sucesso),
+    ou False se já existia (ignorada por duplicidade) ou em caso de erro.
+    """
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -399,11 +440,14 @@ def save_occurrence(name, source, date_str, link, context):
             INSERT OR IGNORE INTO occurrences (name, source, date, link, context)
             VALUES (?, ?, ?, ?, ?)
         """, (name, source, date_str, link, context))
-        if cursor.rowcount > 0:
+        is_new = cursor.rowcount > 0
+        if is_new:
             logger.success(f"Nova ocorrência detectada e salva: {name} em {source}")
         conn.commit()
+        return is_new
     except Exception as e:
         logger.error(f"Erro ao salvar ocorrência no banco para {name} em {source}: {e}")
+        return False
     finally:
         if 'conn' in locals():
             conn.close()

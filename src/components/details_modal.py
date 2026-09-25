@@ -29,7 +29,7 @@ def get_accent_insensitive_pattern(text: str) -> str:
 def highlight_match(match):
     return f'<mark style="background-color: #ffc107; color: #212529; padding: 2px 6px; border-radius: 4px; font-weight: bold;">{match.group(0)}</mark>'
 
-@st.dialog("Detalhes da Ocorrência")
+@st.dialog("Detalhes da Ocorrência", width="large")
 def show_occurrence_details(row):
     st.markdown(f"### 👤 {row['Nome']}")
     st.markdown(f"**Fonte:** {row['Fonte']}")

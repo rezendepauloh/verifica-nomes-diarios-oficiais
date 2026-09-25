@@ -19,6 +19,7 @@ services:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
     environment:
+      - TZ=${TZ:-America/Campo_Grande}
       - PORT=${PORT}
       - STREAMLIT_SERVER_PORT=${PORT}
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0

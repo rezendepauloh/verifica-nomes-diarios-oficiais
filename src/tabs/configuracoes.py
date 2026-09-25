@@ -63,30 +63,43 @@ CONFIG_SUBTABS = {
 # MODAIS DINÂMICOS DE GESTÃO (@st.dialog)
 # ==============================================================================
 
-@st.dialog("👥 Gestão de Nome Monitorado")
+@st.dialog("👥 Gestão de Nome Monitorado", width="large")
 def modal_gerenciar_nome(item: dict = None):
-    """Modal unificado para cadastrar ou editar um nome monitorado."""
+    """Modal unificado para cadastrar ou editar um nome monitorado com suporte a alertas WhatsApp via CallMeBot."""
+    from src.notifications import test_callmebot_connection
+
     is_edit = item is not None and "ID" in item
     
     if is_edit:
         st.markdown(f"### ✏️ Editar: **{item.get('Nome', '')}**")
-        st.caption("Modifique os dados, alterne o status de busca ou exclua o cadastro.")
+        st.caption("Modifique os dados, configure notificações via WhatsApp ou exclua o cadastro.")
     else:
         st.markdown("### ➕ Cadastrar Novo Nome")
-        st.caption("Preencha o nome completo para pesquisa e o número de telefone/WhatsApp.")
+        st.caption("Preencha o nome completo para pesquisa e os dados de notificação.")
 
     init_name = item.get("Nome", "") if is_edit else ""
     init_phone = format_phone(item.get("Telefone_raw", "")) if is_edit else ""
+    init_apikey = item.get("Callmebot_raw", "") if is_edit else ""
     init_active = bool(item.get("Ativo_raw", 1) == 1) if is_edit else True
 
     with st.form("form_modal_nome"):
-        c1, c2 = st.columns([2, 1])
+        c1, c2 = st.columns([1.8, 1.2])
         with c1:
             nome_val = st.text_input("Nome Completo *", value=init_name, placeholder="Ex: Paulo Henrique Gonçalves Rezende")
         with c2:
             phone_val = st.text_input("Telefone / WhatsApp (com DDD)", value=init_phone, placeholder="Ex: (67) 99247-1379")
         
-        status_val = st.checkbox("🟢 Monitoramento Ativo para este nome", value=init_active)
+        c3, c4 = st.columns([1.8, 1.2])
+        with c3:
+            apikey_val = st.text_input(
+                "Chave de API CallMeBot (WhatsApp)",
+                value=init_apikey,
+                placeholder="Ex: 1234567",
+                type="password",
+                help="Chave pessoal obtida gratuitamente enviando uma mensagem para o bot do CallMeBot no WhatsApp."
+            )
+        with c4:
+            status_val = st.checkbox("🟢 Monitoramento Ativo", value=init_active)
 
         st.markdown("<br>", unsafe_allow_html=True)
         col_btn_salvar, col_btn_del = st.columns([2, 1] if is_edit else [1, 0.01])
@@ -100,16 +113,43 @@ def modal_gerenciar_nome(item: dict = None):
             with col_btn_del:
                 btn_delete = st.form_submit_button("🗑️ Excluir", width="stretch")
 
+    # Área de Ajuda e Teste do CallMeBot
+    with st.expander("📲 Como obter a API Key gratuita do CallMeBot em 30 segundos?"):
+        st.markdown("""
+        O **CallMeBot** é um serviço gratuito para alertas diretos no WhatsApp:
+        1. Adicione o número **+34 694 23 41 84** aos seus contatos do celular (ou abra direto no WhatsApp).
+        2. Envie exatamente a seguinte mensagem para ele:  
+           `I allow callmebot to send me messages`
+        3. O robô responderá imediatamente com sua **API Key** (um número de 6 ou 7 dígitos).
+        4. Cole esse código no campo acima e clique em **Atualizar/Cadastrar**.
+        """)
+
+    # Botão de Teste em tempo real fora do form
+    if phone_val and (apikey_val or is_edit):
+        col_test_txt, col_test_btn = st.columns([2.5, 1])
+        with col_test_txt:
+            st.caption("Quer verificar se seu número já está recebendo alertas?")
+        with col_test_btn:
+            if st.button("📲 Testar Envio", width="stretch", key="btn_test_callmebot_modal"):
+                with st.spinner("Enviando mensagem de teste via CallMeBot..."):
+                    key_to_test = apikey_val.strip() if apikey_val else init_apikey
+                    ok, msg_ret = test_callmebot_connection(phone_val, key_to_test)
+                    if ok:
+                        st.success(f"✅ {msg_ret}")
+                    else:
+                        st.error(f"❌ {msg_ret}")
+
     if btn_submit:
         if not nome_val.strip():
             st.error("O campo de Nome Completo é obrigatório.")
         else:
             clean_phone_to_save = format_phone(phone_val.strip())
+            clean_apikey_to_save = apikey_val.strip()
             if is_edit:
-                update_monitored_name(item["ID"], nome_val, clean_phone_to_save, 1 if status_val else 0)
+                update_monitored_name(item["ID"], nome_val, clean_phone_to_save, clean_apikey_to_save, 1 if status_val else 0)
                 st.toast(f"✅ Nome '{nome_val}' atualizado com sucesso!", icon="👥")
             else:
-                success = add_monitored_name(nome_val, clean_phone_to_save)
+                success = add_monitored_name(nome_val, clean_phone_to_save, clean_apikey_to_save)
                 if not success:
                     st.warning(f"O nome '{nome_val}' já existe no sistema.")
                     return
@@ -126,7 +166,7 @@ def modal_gerenciar_nome(item: dict = None):
         st.rerun()
 
 
-@st.dialog("🌐 Gestão de Fonte / Diário Oficial")
+@st.dialog("🌐 Gestão de Fonte / Diário Oficial", width="large")
 def modal_gerenciar_fonte(item: dict = None):
     """Modal unificado para cadastrar ou editar uma fonte de dados."""
     is_edit = item is not None and "ID" in item
@@ -243,14 +283,17 @@ def render_configuracoes_tab():
         if names_data:
             rows = []
             for item in names_data:
-                name_id, name, phone, active, created_at = item
+                name_id, name, phone, callmebot_key, active, created_at = item
                 formatted_phone = format_phone(phone) if phone else "Não informado"
                 formatted_created_at = format_br_datetime(created_at)
+                has_whatsapp = bool(phone and callmebot_key)
                 rows.append({
                     "ID": name_id,
                     "Nome": name,
                     "Telefone": formatted_phone,
                     "Telefone_raw": phone or "",
+                    "Callmebot_raw": callmebot_key or "",
+                    "Alertas WhatsApp": "📲 Ativo" if has_whatsapp else ("⚠️ Sem Chave" if phone else "❌ Inativo"),
                     "Status": "🟢 Ativo" if active == 1 else "⚪ Inativo",
                     "Ativo_raw": active,
                     "Cadastrado em": formatted_created_at
@@ -260,7 +303,7 @@ def render_configuracoes_tab():
             st.markdown(f"**Total de Nomes Cadastrados:** `{len(df_names)}`")
             
             selection_event = st.dataframe(
-                df_names[["Nome", "Telefone", "Status", "Cadastrado em"]],
+                df_names[["Nome", "Telefone", "Alertas WhatsApp", "Status", "Cadastrado em"]],
                 width="stretch",
                 hide_index=True,
                 on_select="rerun",

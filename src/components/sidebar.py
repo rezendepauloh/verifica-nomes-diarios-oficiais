@@ -17,7 +17,7 @@ def render_sidebar():
     
     if all_names:
         for item in all_names:
-            name_id, name, phone, active, _ = item
+            name_id, name, phone, callmebot_key, active, _ = item
             # Pré-marca os que estão ativos no banco
             if st.sidebar.checkbox(name, value=(active == 1), key=f"sb_name_{name_id}"):
                 active_names.append(name)

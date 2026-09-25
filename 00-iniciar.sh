@@ -351,6 +351,13 @@ deploy_homelab() {
     read -p "Pressione [Enter] para voltar ao menu..."
 }
 
+run_unit_tests() {
+    echo -e "${C_CYAN}🧪 Executando suíte de testes unitários com pytest...${C_RESET}"
+    docker exec -it verifica-diarios-app pytest -v tests/
+    echo ""
+    read -p "Pressione [Enter] para voltar ao menu..."
+}
+
 show_menu() {
     clear
     echo -e "${C_CYAN}${C_BOLD}╔══════════════════════════════════════════════════════════════╗${C_RESET}"
@@ -363,10 +370,11 @@ show_menu() {
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_GREEN}4${C_RESET} - Reconstruir Docker Compose (--no-cache)                 ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_GREEN}5${C_RESET} - Parar sistema (docker compose down)                     ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_MAGENTA}6${C_RESET} - 🚀 Deploy no Mini PC (Dockge / Homelab)                  ${C_CYAN}${C_BOLD}║${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_YELLOW}7${C_RESET} - 🧪 Executar Testes Unitários (pytest)                   ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_RED}0${C_RESET} - Sair                                                    ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}╚══════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""
-    read -p "Opção [0-6]: " opcao
+    read -p "Opção [0-7]: " opcao
     case "$opcao" in
         1) start_app ;;
         2) run_scan_manual ;;
@@ -374,6 +382,7 @@ show_menu() {
         4) rebuild_docker ;;
         5) stop_system ;;
         6) deploy_homelab ;;
+        7) run_unit_tests ;;
         0) exit 0 ;;
         *) echo -e "${C_RED}Opção inválida.${C_RESET}"; sleep 1; show_menu ;;
     esac
@@ -398,6 +407,9 @@ case "$1" in
     --deploy|-dp)
         deploy_homelab
         ;;
+    --test|-t)
+        docker exec -t verifica-diarios-app pytest -v tests/
+        ;;
     --help|-h)
         echo "Uso: ./00-iniciar.sh [OPÇÃO]"
         echo ""
@@ -408,6 +420,7 @@ case "$1" in
         echo "  --rebuild, -r            Reconstrói a imagem Docker (--no-cache)"
         echo "  --down, --stop           Para os containers do sistema"
         echo "  --deploy, -dp            Executa deploy no Mini PC (Dockge / Homelab)"
+        echo "  --test, -t               Executa a suíte de testes unitários com pytest"
         echo "  --help, -h               Exibe esta ajuda"
         echo "  (sem argumentos)         Abre o menu interativo"
         ;;
