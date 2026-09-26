@@ -96,10 +96,33 @@ def main():
                         except Exception as ex_notif:
                             logger.error(f"Erro ao disparar WhatsApp para '{rec['name']}' ({rec['phone']}): {ex_notif}")
 
+        trigger_type = "automático"
+        if len(sys.argv) > 3 and sys.argv[3] != "null":
+            raw_trig = sys.argv[3].lower()
+            if "manual_agendador" in raw_trig:
+                trigger_type = "manual (teste agendador)"
+            elif "manual_painel" in raw_trig:
+                trigger_type = "manual (painel)"
+            else:
+                trigger_type = sys.argv[3]
+
+        from src.database import record_scan_execution
+        record_scan_execution(
+            trigger_type=trigger_type,
+            new_records=novos,
+            success=True,
+            details=f"{len(found_items)} itens encontrados, {novos} novos, {notificados} notificações enviadas"
+        )
         logger.success(f"Varredura concluída! {novos} novas ocorrências detectadas ({notificados} alertas WhatsApp enviados).")
         
     except Exception as e:
         logger.error(f"Erro na execução da varredura em segundo plano: {e}")
+        try:
+            from src.database import record_scan_execution
+            trig = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != "null" else "automático"
+            record_scan_execution(trigger_type=trig, new_records=0, success=False, details=str(e)[:250])
+        except Exception:
+            pass
     finally:
         # Remove arquivo de lock
         try:

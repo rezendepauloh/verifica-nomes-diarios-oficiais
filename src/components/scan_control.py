@@ -24,6 +24,6 @@ def render_scan_control(selected_sources, active_names):
     else:
         if st.button("🚀 Iniciar Nova Varredura Completa", key="btn_iniciar_varredura"):
             logger.info("Botão 'Iniciar Nova Varredura Completa' clicado na interface Streamlit. Iniciando subprocesso...")
-            subprocess.Popen([sys.executable, "src/run_scan.py", json.dumps(selected_sources), json.dumps(active_names)])
+            subprocess.Popen([sys.executable, "src/run_scan.py", json.dumps(selected_sources), json.dumps(active_names), "manual_painel"])
             st.toast("🚀 Varredura iniciada em segundo plano!", icon="🔍")
             st.rerun()

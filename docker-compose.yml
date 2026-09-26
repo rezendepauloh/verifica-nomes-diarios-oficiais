@@ -12,8 +12,6 @@ services:
     volumes:
       # Sincroniza o código para desenvolvimento em tempo real (hot-reload)
       - .:/app
-      # Protege para não sobrescrever as dependências instaladas no container
-      - /app/.venv
       # Persistência de banco e logs
       - ./data:/app/data
       - ./logs:/app/logs

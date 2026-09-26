@@ -73,6 +73,17 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS scan_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                trigger_type TEXT DEFAULT 'automático',
+                new_records INTEGER DEFAULT 0,
+                success INTEGER DEFAULT 1,
+                details TEXT DEFAULT ''
+            )
+        """)
         
         # Migração defensiva: garante que a coluna phone e callmebot_apikey existam
         try:
@@ -573,4 +584,44 @@ def update_schedule_execution_times(last_run: str = None, next_run: str = None):
     finally:
         if 'conn' in locals():
             conn.close()
+
+def record_scan_execution(trigger_type: str = "automático", new_records: int = 0, success: bool = True, details: str = "") -> bool:
+    """Registra uma execução de varredura no histórico de execuções do SQLite."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO scan_history (trigger_type, new_records, success, details)
+            VALUES (?, ?, ?, ?)
+        """, (trigger_type, new_records, 1 if success else 0, details))
+        conn.commit()
+        logger.info(f"Histórico de execução registrado: tipo='{trigger_type}', novos={new_records}, sucesso={success}")
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao registrar histórico de execução: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def get_scan_history(limit: int = 50) -> list:
+    """Retorna os últimos registros do histórico de execuções do cron/varredura."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, executed_at, trigger_type, new_records, success, details
+            FROM scan_history
+            ORDER BY id DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        return rows
+    except Exception as e:
+        logger.error(f"Erro ao buscar histórico de execuções: {e}")
+        return []
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
 

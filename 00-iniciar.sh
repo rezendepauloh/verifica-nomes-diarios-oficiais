@@ -352,8 +352,8 @@ deploy_homelab() {
 }
 
 run_unit_tests() {
-    echo -e "${C_CYAN}🧪 Executando suíte de testes unitários com pytest...${C_RESET}"
-    docker exec -it verifica-diarios-app pytest -v tests/
+    echo -e "${C_CYAN}🧪 Executando suíte de testes unificada...${C_RESET}"
+    docker exec -it verifica-diarios-app python tests/run_all.py || docker exec -it verifica-diarios-app pytest -v tests/
     echo ""
     read -p "Pressione [Enter] para voltar ao menu..."
 }
@@ -408,7 +408,7 @@ case "$1" in
         deploy_homelab
         ;;
     --test|-t)
-        docker exec -t verifica-diarios-app pytest -v tests/
+        docker exec -t verifica-diarios-app python tests/run_all.py || docker exec -t verifica-diarios-app pytest -v tests/
         ;;
     --help|-h)
         echo "Uso: ./00-iniciar.sh [OPÇÃO]"

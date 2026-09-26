@@ -22,6 +22,8 @@ from .db import (
     delete_monitored_source,
     get_schedule_config,
     save_schedule_config,
-    update_schedule_execution_times
+    update_schedule_execution_times,
+    record_scan_execution,
+    get_scan_history
 )
 

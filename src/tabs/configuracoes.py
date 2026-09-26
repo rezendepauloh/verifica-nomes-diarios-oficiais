@@ -22,7 +22,8 @@ from src.database import (
     delete_monitored_source,
     seed_config_from_env_if_empty,
     get_schedule_config,
-    save_schedule_config
+    save_schedule_config,
+    get_scan_history
 )
 from src.scrapers import is_scraper_implemented
 from src.scheduler import calculate_next_run, trigger_manual_test_scan, DAY_LABELS
@@ -535,6 +536,47 @@ def render_configuracoes_tab():
                         st.rerun()
                     else:
                         st.warning("Não foi possível iniciar o teste (varredura já em execução).")
+
+        # ---------------------------------------------------------------------
+        # HISTÓRICO DE EXECUÇÕES DO AGENDADOR / CRON JOB
+        # ---------------------------------------------------------------------
+        st.markdown("<br><hr style='border-color: rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+        col_hist_title, col_hist_btn = st.columns([3, 1])
+        with col_hist_title:
+            st.markdown("#### 📜 Histórico de Execuções do Agendador (Cron)")
+            st.caption("Acompanhe os disparos autônomos e manuais, se houve descoberta de registros novos e se a rotina foi bem-sucedida.")
+        with col_hist_btn:
+            if st.button("🔄 Atualizar Histórico", width="stretch"):
+                st.rerun()
+
+        history_rows = get_scan_history(limit=50)
+        if history_rows:
+            hist_data = []
+            for row in history_rows:
+                hid, exec_at, trig_type, new_recs, success, details = row
+                hist_data.append({
+                    "Horário": format_br_datetime(exec_at),
+                    "Origem / Disparo": trig_type.title() if trig_type else "Automático",
+                    "Novos Registros?": f"✨ Sim ({new_recs})" if new_recs > 0 else "0 (Nenhum)",
+                    "Resultado": "✅ Sucesso" if success == 1 else "❌ Falha",
+                    "Detalhes": details or "-"
+                })
+
+            df_hist = pd.DataFrame(hist_data)
+            st.dataframe(
+                df_hist,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Horário": st.column_config.TextColumn("Horário (DD/MM/AAAA HH:MM:SS)", width="medium"),
+                    "Origem / Disparo": st.column_config.TextColumn("Tipo de Disparo", width="small"),
+                    "Novos Registros?": st.column_config.TextColumn("Novos Registros", width="small"),
+                    "Resultado": st.column_config.TextColumn("Status", width="small"),
+                    "Detalhes": st.column_config.TextColumn("Detalhes da Execução", width="large")
+                }
+            )
+        else:
+            st.info("Nenhuma execução registrada no histórico ainda. Quando o agendador ou o teste rodarem, os registros aparecerão aqui.")
 
     # -------------------------------------------------------------------------
     # SUBTAB 4: SINCRONIZAÇÃO & BACKUP

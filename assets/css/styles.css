@@ -132,7 +132,7 @@ div[data-testid='stRadioGroup'] {
     margin-bottom: 20px !important;
 }
 
-/* Oculta as bolinhas nativas do radio do Streamlit */
+/* Oculta de forma absoluta todas as bolinhas e círculos nativos do radio */
 div[class*="etak9234"],
 div[class*="etak9235"],
 div[data-testid="stRadio"] label>div:first-child:not([data-testid="stMarkdownContainer"]),
@@ -142,8 +142,11 @@ label[data-baseweb="radio"]>div:first-child:not([data-testid="stMarkdownContaine
 div[data-testid="stRadio"] label>div[aria-hidden="true"],
 div[data-testid="stRadioGroup"] label>div[aria-hidden="true"],
 div[data-testid="stRadio"] input[type="radio"],
-div[data-testid="stRadioGroup"] input[type="radio"] {
+div[data-testid="stRadioGroup"] input[type="radio"],
+div[data-testid="stRadio"] svg,
+div[data-testid="stRadioGroup"] svg {
     display: none !important;
+    visibility: hidden !important;
 }
 
 /* Estilo do texto inativo (Aba não selecionada com cor adaptável ao tema) */
@@ -159,6 +162,7 @@ label[data-testid="stRadioOption"] {
     opacity: 0.75 !important;
     cursor: pointer !important;
     margin: 0 !important;
+    font-weight: 500 !important;
     transition: all 0.2s ease !important;
 }
 
@@ -177,17 +181,41 @@ label[data-testid="stRadioOption"]:hover {
     opacity: 1 !important;
 }
 
-/* Aba Ativa (Indicador com linha azul moderna e texto destacado) */
+/* Aba Ativa: Estrita ao elemento com input realmente marcado */
 label[data-testid="stRadioOption"]:has(input:checked),
-label[data-testid="stRadioOption"][data-selected="true"],
-label[data-testid="stRadioOption"][aria-checked="true"],
-label[data-testid="stRadioOption"]:has(input[checked]),
 div[data-testid="stRadio"]>div[role="radiogroup"]>label:has(input:checked),
 div[data-testid="stRadioGroup"]>label:has(input:checked) {
     color: #3b82f6 !important;
     opacity: 1 !important;
     border-bottom: 2px solid #3b82f6 !important;
     font-weight: 700 !important;
+}
+
+/* Garantia para abas nativas st.tabs (ex: Lista de Ocorrências / Gráfico) */
+button[data-baseweb="tab"] {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 1rem !important;
+    font-weight: 500 !important;
+    color: var(--metric-title-color, #94a3b8) !important;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    transition: all 0.2s ease !important;
+}
+
+button[data-baseweb="tab"]:hover {
+    color: #3b82f6 !important;
+}
+
+button[data-baseweb="tab"][aria-selected="true"] {
+    color: #3b82f6 !important;
+    border-bottom: 2px solid #3b82f6 !important;
+    font-weight: 700 !important;
+}
+
+/* Suprime linha vermelha residual ou indicadores nativos do Streamlit */
+div[data-baseweb="tab-highlight"] {
+    background-color: #3b82f6 !important;
 }
 
 /* Borda dos modais e tabelas */

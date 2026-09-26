@@ -32,6 +32,10 @@ def render_subtabs(
 
     default_index = subtab_slugs.index(current_slug_url)
 
+    # Se a chave já existir no session_state mas divergir da URL, sincroniza
+    if key in st.session_state and st.session_state[key] not in subtab_slugs:
+        st.session_state[key] = current_slug_url
+
     selected_slug = st.radio(
         label=f"{param_name}_nav",
         options=subtab_slugs,

@@ -130,7 +130,7 @@ class BackgroundScanScheduler(threading.Thread):
 
         # Dispara o subprocesso run_scan.py de forma totalmente assíncrona
         try:
-            subprocess.Popen([sys.executable, "src/run_scan.py", "null", "null"])
+            subprocess.Popen([sys.executable, "src/run_scan.py", "null", "null", "agendado"])
             logger.success("⏰ [Scheduler] Subprocesso de varredura disparado com sucesso.")
         except Exception as e:
             logger.error(f"⏰ [Scheduler] Falha ao disparar subprocesso: {e}")
@@ -145,7 +145,7 @@ def trigger_manual_test_scan() -> bool:
     update_schedule_execution_times(last_run=last_run_str)
     
     try:
-        subprocess.Popen([sys.executable, "src/run_scan.py", "null", "null"])
+        subprocess.Popen([sys.executable, "src/run_scan.py", "null", "null", "manual_agendador"])
         logger.info("⏰ [Scheduler] Disparo de teste manual do agendador realizado com sucesso.")
         return True
     except Exception as e:

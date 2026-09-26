@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Configurações e fixtures globais de teste para o pytest.
+Configurações e fixtures globais de teste para o pytest e unittest.
 """
 import os
 import sys
@@ -11,7 +11,12 @@ from pathlib import Path
 # Garante raiz do projeto e src/ no sys.path
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
-sys.path.insert(0, str(ROOT_DIR / "src"))
+SRC_DIR = ROOT_DIR / "src"
+if SRC_DIR.exists():
+    sys.path.insert(0, str(SRC_DIR))
+
+# Mocks universais seguros
+import tests.test_helpers
 
 @pytest.fixture(autouse=True)
 def isolated_db(monkeypatch, tmp_path):
