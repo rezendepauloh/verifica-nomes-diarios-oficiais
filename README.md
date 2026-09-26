@@ -26,27 +26,32 @@ O sistema conta com **Página Central de Configurações** para gestão de pesso
 
 ```text
 ├── app.py                      # Ponto de entrada leve (orquestra a interface e abas em src/)
-├── 00-iniciar.sh               # CLI unificado para Linux/WSL (Docker Manager e Deploy Homelab)
-├── 00-iniciar.cmd              # Script de inicialização rápida para Windows
+├── 00-iniciar.sh               # CLI unificado para Linux/WSL (Docker Manager, Testes e Deploy Homelab)
+├── 00-iniciar.cmd              # Script de inicialização rápida para Windows (Menu interativo e Testes)
 ├── Dockerfile                  # Imagem Docker otimizada baseada em Python 3.12-slim
-├── docker-compose.yml          # Orquestrador local com volumes e live-reload
+├── docker-compose.yml          # Orquestrador local com volumes e live-reload (sem .venv no host)
 ├── docker-compose.server.yml   # Orquestrador de produção para o servidor / Mini PC (Dockge)
 ├── requirements.txt            # Dependências Python do projeto
 ├── data/
-│   └── results.db              # Banco de dados SQLite persistente (tabelas occurrences, names, sources)
+│   └── results.db              # Banco de dados SQLite persistente (occurrences, names, sources, schedule, history)
 ├── .env                        # Variáveis de ambiente (Porta, Homelab SSH, fallback inicial)
 ├── .env-example                # Modelo de variáveis de ambiente
 ├── assets/
 │   └── css/
-│       └── styles.css          # Estilos CSS modernos e fontes (Outfit)
-├── tests/                      # Suíte de testes unitários automatizados (pytest)
-│   ├── conftest.py             # Fixtures de isolamento do banco SQLite em memória
-│   ├── test_database.py        # Testes de persistência, deduplicação e consultas
-│   ├── test_notifications.py   # Testes do CallMeBot e normalização de telefones
-│   ├── test_scheduler.py       # Testes de cálculo de agendamentos futuros
-│   └── test_scrapers.py        # Testes de limpeza de texto, JSON e robôs
+│       └── styles.css          # Estilos CSS modernos, temas claro/escuro e fix de abas (Outfit)
+├── tests/                      # Suíte de testes automatizados com relatório colorido
+│   ├── run_all.py              # Runner unificado com CLI colorido e métricas de tempo
+│   ├── test_helpers.py         # Mocks universais transparentes (dotenv, pdfplumber, bs4, streamlit, pandas)
+│   ├── conftest.py             # Fixtures de isolamento do banco SQLite temporário
+│   ├── unit/                   # Testes unitários puros
+│   │   ├── test_database.py    # Testes de persistência, deduplicação, histórico e consultas
+│   │   ├── test_notifications.py# Testes do CallMeBot e normalização de telefones BR
+│   │   ├── test_scheduler.py   # Testes de cálculo determinístico de agendamentos futuros
+│   │   └── test_scrapers.py    # Testes de limpeza de texto, JSON e robôs
+│   └── integration/            # Testes de fluxo e ponta a ponta
+│       └── test_scan_flow.py   # Fluxo de detecção de edital inédito e disparo de notificação
 └── src/
-    ├── run_scan.py             # Script de varredura em segundo plano (CLI / Subprocesso)
+    ├── run_scan.py             # Script de varredura em segundo plano (CLI / Subprocesso) com registro de histórico
     ├── config.py               # Variáveis de ambiente, caminhos e controle de lock/processos
     ├── logger.py               # Logging com SafeStreamWrapper e ANSIColoredFormatter
     ├── terminal.py             # Utilitário de cores ANSI, molduras e formatação no console
@@ -55,7 +60,7 @@ O sistema conta com **Página Central de Configurações** para gestão de pesso
     │   └── callmebot.py        # Integração e disparador de alertas WhatsApp via CallMeBot
     ├── database/
     │   ├── __init__.py
-    │   └── db.py               # Camada de banco de dados SQLite (occurrences, names, sources, schedule)
+    │   └── db.py               # Camada de banco de dados SQLite (occurrences, names, sources, schedule, history)
     ├── scheduler/
     │   ├── __init__.py
     │   └── engine.py           # Agendador de varreduras em background (Singleton Thread Daemon)
@@ -65,7 +70,7 @@ O sistema conta com **Página Central de Configurações** para gestão de pesso
     ├── components/
     │   ├── __init__.py
     │   ├── header.py           # Cabeçalho visual com gradiente e títulos
-    │   ├── subtabs.py          # Componente de sub-navegação moderna via query parameters (?subtab=slug)
+    │   ├── subtabs.py          # Componente de sub-navegação moderna via query parameters (?tab=slug, ?subtab=slug)
     │   ├── sidebar.py          # Barra lateral dinâmica com seleção de nomes e fontes ativas
     │   ├── metrics.py          # Cards de indicadores (Total, Pendentes e Lidos)
     │   ├── metric_cards.py     # Componente flexível e adaptável ao tema claro/escuro de cards métricos
@@ -74,7 +79,7 @@ O sistema conta com **Página Central de Configurações** para gestão de pesso
     └── tabs/
         ├── __init__.py
         ├── dashboard.py        # Tabela interativa com filtros dinâmicos e gráfico por fonte
-        └── configuracoes.py    # Gestão de Nomes, Telefones, WhatsApp, Fontes, Agendamento e Backup
+        └── configuracoes.py    # Gestão de Nomes, WhatsApp, Fontes, Agendamento (com histórico) e Backup
 ```
 
 ---
@@ -97,6 +102,7 @@ O sistema elimina o acoplamento estático com o `.env` através da aba **⚙️ 
    - Configuração de dias da semana (ex: Segunda a Sexta, ou incluindo finais de semana).
    - Definição de horários de execução diária no formato 24h (ex: `08:00`, ou múltiplos como `08:00, 14:00`).
    - Monitoramento em background autônomo sem travar a interface web e com prevenção de execuções concorrentes.
+   - **Tabela de Histórico de Execuções do Cron**: exibe em tempo real o histórico completo de execuções autônomas e manuais com data/hora em `DD/MM/AAAA HH:MM:SS`, detecção de novos registros (`✨ Sim (X)` ou `0 (Nenhum)`) e status (`✅ Sucesso` / `❌ Falha`).
    - Botão para disparo de teste manual imediato.
 4. **📲 Alertas e Notificações no WhatsApp (CallMeBot)**:
    - Notificação automática no WhatsApp para cada pessoa monitorada assim que uma **nova ocorrência inédita** for detectada.
@@ -148,7 +154,7 @@ Atalhos úteis via CLI:
 - `./00-iniciar.sh --scan` : Executa uma varredura manual em segundo plano.
 - `./00-iniciar.sh --logs` : Acompanha os logs em tempo real do container.
 - `./00-iniciar.sh --rebuild` : Reconstrói a imagem Docker.
-- `./00-iniciar.sh --test` : Executa a suíte completa de testes unitários com pytest.
+- `./00-iniciar.sh --test` : Executa a suíte de testes completa (via runner colorido `run_all.py` / pytest).
 - `./00-iniciar.sh --deploy` : Executa o pipeline de deploy automatizado no Homelab / Mini PC (Dockge).
 
 #### No Windows:
