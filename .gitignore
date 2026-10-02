@@ -14,6 +14,10 @@ __pycache__/
 
 # Local database
 results.db
+*.db
+*.sqlite
+data/*.db
+data/*.sqlite
 
 # VS Code / IDE configs
 .vscode/

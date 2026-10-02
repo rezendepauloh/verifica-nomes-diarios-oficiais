@@ -72,14 +72,24 @@ else:
     mock_st.cache_data = _decorator_helper
     mock_st.cache_resource = _decorator_helper
     mock_st.radio = MagicMock(return_value="dashboard")
+    mock_st.button = MagicMock(return_value=False)
+    mock_st.selectbox = MagicMock(return_value="Todos")
     mock_st.markdown = MagicMock()
     mock_st.toast = MagicMock()
     mock_st.info = MagicMock()
     mock_st.success = MagicMock()
     mock_st.warning = MagicMock()
     mock_st.error = MagicMock()
-    mock_st.columns = MagicMock(return_value=[MagicMock(), MagicMock()])
-    mock_st.tabs = MagicMock(return_value=[MagicMock(), MagicMock()])
+    mock_st.columns = MagicMock(side_effect=lambda spec: [MagicMock() for _ in range(len(spec) if isinstance(spec, list) else int(spec))])
+    mock_st.tabs = MagicMock(side_effect=lambda tabs: [MagicMock() for _ in range(len(tabs))])
+    mock_st.rerun = MagicMock()
+
+    mock_sidebar = MagicMock()
+    mock_sidebar.selectbox = MagicMock(return_value=10)
+    mock_sidebar.checkbox = MagicMock(return_value=True)
+    mock_sidebar.markdown = MagicMock()
+    mock_sidebar.caption = MagicMock()
+    mock_st.sidebar = mock_sidebar
 
     mock_comp = types.ModuleType("streamlit.components")
     mock_comp_v1 = types.ModuleType("streamlit.components.v1")

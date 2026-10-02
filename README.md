@@ -71,15 +71,16 @@ O sistema conta com **Página Central de Configurações** para gestão de pesso
     │   ├── __init__.py
     │   ├── header.py           # Cabeçalho visual com gradiente e títulos
     │   ├── subtabs.py          # Componente de sub-navegação moderna via query parameters (?tab=slug, ?subtab=slug)
-    │   ├── sidebar.py          # Barra lateral dinâmica com seleção de nomes e fontes ativas
+    │   ├── pagination.py       # Componente reutilizável de paginação e seletor ItemsPerPage (10, 20, 50, 100, Todos)
+    │   ├── sidebar.py          # Barra lateral dinâmica com seleção de nomes/fontes ativas e seletor de paginação
     │   ├── metrics.py          # Cards de indicadores (Total, Pendentes e Lidos)
     │   ├── metric_cards.py     # Componente flexível e adaptável ao tema claro/escuro de cards métricos
     │   ├── scan_control.py     # Botão e visualizador de progresso da varredura em background
     │   └── details_modal.py    # Modal de detalhes da ocorrência e gerenciamento de status (width="large")
     └── tabs/
         ├── __init__.py
-        ├── dashboard.py        # Tabela interativa com filtros dinâmicos e gráfico por fonte
-        └── configuracoes.py    # Gestão de Nomes, WhatsApp, Fontes, Agendamento (com histórico) e Backup
+        ├── dashboard.py        # Tabela interativa paginada com filtros dinâmicos e gráfico por fonte
+        └── configuracoes.py    # Gestão de Nomes, WhatsApp, Fontes, Agendamento (com histórico paginado) e Backup
 ```
 
 ---
@@ -102,16 +103,20 @@ O sistema elimina o acoplamento estático com o `.env` através da aba **⚙️ 
    - Configuração de dias da semana (ex: Segunda a Sexta, ou incluindo finais de semana).
    - Definição de horários de execução diária no formato 24h (ex: `08:00`, ou múltiplos como `08:00, 14:00`).
    - Monitoramento em background autônomo sem travar a interface web e com prevenção de execuções concorrentes.
-   - **Tabela de Histórico de Execuções do Cron**: exibe em tempo real o histórico completo de execuções autônomas e manuais com data/hora em `DD/MM/AAAA HH:MM:SS`, detecção de novos registros (`✨ Sim (X)` ou `0 (Nenhum)`) e status (`✅ Sucesso` / `❌ Falha`).
+   - **Fuso Horário Local Preciso**: Suporte total a fusos horários brasileiros via variável `TZ` no `.env` (padrão `America/Campo_Grande` / GMT-4), convertendo automaticamente timestamps UTC gravados no SQLite para o relógio local exato.
+   - **Tabela de Histórico de Execuções do Cron Paginada**: exibe em tempo real o histórico de execuções autônomas e manuais com data/hora em `DD/MM/AAAA HH:MM:SS`, detecção de novos registros (`✨ Sim (X)` ou `0 (Nenhum)`), status (`✅ Sucesso` / `❌ Falha`) e paginação com seletor de registros por página (`10, 20, 50, 100, Todos`).
    - Botão para disparo de teste manual imediato.
-4. **📲 Alertas e Notificações no WhatsApp (CallMeBot)**:
+4. **📄 Paginação Inteligente (ItemsPerPage)**:
+   - Paginação idêntica ao ecossistema de referência (`automacao-chamados-sti`), implementada tanto na **Tabela Principal de Ocorrências** quanto no **Histórico de Execuções do Agendador (Cron)**.
+   - Seletor de itens por página na barra lateral e botões de navegação numerados com reticências (`...`), `⬅️ Anterior` e `Próxima ➡️`.
+5. **📲 Alertas e Notificações no WhatsApp (CallMeBot)**:
    - Notificação automática no WhatsApp para cada pessoa monitorada assim que uma **nova ocorrência inédita** for detectada.
    - Integração leve, rápida e gratuita via **CallMeBot**:
      - Cada usuário obtém sua própria API Key enviando a mensagem `I allow callmebot to send me messages` para o WhatsApp **+34 694 23 41 84**.
      - A chave é salva no cadastro do nome monitorado na aba Configurações.
      - Botão de **"📲 Testar Envio"** em tempo real no modal para checar o funcionamento instantaneamente.
      - Suporte opcional à variável `CALLMEBOT_API_KEY` no `.env` como chave global/fallback.
-5. **💾 Sincronização & Migração**:
+6. **💾 Sincronização & Migração**:
    - Botão para reimportar dados do `.env` caso necessário, com migrações automáticas de schema relacional.
 
 ---

@@ -42,7 +42,7 @@ start_scheduler_if_not_running()
 render_header()
 
 # 3. Renderiza a barra lateral e obtém os filtros
-active_names, selected_sources = render_sidebar()
+active_names, selected_sources, items_per_page = render_sidebar()
 
 # 4. Navegação Principal por Abas
 MAIN_TABS = {
@@ -66,8 +66,8 @@ if active_main_tab == "dashboard":
     # 6. Renderiza os controles de varredura (botão / logs de progresso)
     render_scan_control(selected_sources, active_names)
 
-    # 7. Renderiza a tabela de ocorrências e gráfico
-    render_dashboard_tab(occurrences)
+    # 7. Renderiza a tabela de ocorrências e gráfico com paginação
+    render_dashboard_tab(occurrences, items_per_page=items_per_page)
 
 elif active_main_tab == "configuracoes":
     # Renderiza a página completa de configurações

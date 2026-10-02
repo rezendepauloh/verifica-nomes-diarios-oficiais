@@ -49,5 +49,16 @@ def render_sidebar():
     else:
         st.sidebar.caption("Nenhuma fonte cadastrada.")
 
-    return active_names, selected_sources
+    st.sidebar.markdown("---")
+
+    # 3. Paginação de Ocorrências (ItemsPerPage)
+    from src.components.pagination import render_items_per_page_selector
+    items_per_page = render_items_per_page_selector(
+        key_prefix="occurrences",
+        options=[10, 20, 50, 100, "Todos"],
+        default_index=1,
+        label="📄 Ocorrências por página:"
+    )
+
+    return active_names, selected_sources, items_per_page
 

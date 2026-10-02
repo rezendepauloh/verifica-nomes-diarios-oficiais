@@ -59,5 +59,34 @@ class TestSchedulerCalculations(unittest.TestCase):
         self.assertIsNone(calculate_next_run(["mon"], []))
         self.assertIsNone(calculate_next_run(None, None))
 
+
+class TestTimezoneFormatting(unittest.TestCase):
+    """Valida a conversão de timestamps UTC para o fuso local (America/Campo_Grande)."""
+
+    def test_format_br_datetime_utc_to_local(self):
+        import os
+        from src.config import format_br_datetime
+        # Garante fuso do MS (UTC-4)
+        os.environ["TZ"] = "America/Campo_Grande"
+        
+        # 22:01:32 UTC corresponde a 18:01:32 local (UTC-4)
+        utc_ts = "2026-10-01 22:01:32"
+        formatted = format_br_datetime(utc_ts, is_utc=True)
+        self.assertEqual(formatted, "01/10/2026 18:01:32")
+
+    def test_format_br_datetime_direct_local(self):
+        from src.config import format_br_datetime
+        # Quando is_utc=False, mantém a data/hora local informada
+        local_ts = "2026-10-01 18:01:32"
+        formatted = format_br_datetime(local_ts, is_utc=False)
+        self.assertEqual(formatted, "01/10/2026 18:01:32")
+
+    def test_format_br_datetime_invalid_or_empty(self):
+        from src.config import format_br_datetime
+        self.assertEqual(format_br_datetime(""), "-")
+        self.assertEqual(format_br_datetime(None), "-")
+        self.assertEqual(format_br_datetime("nan"), "-")
+
+
 if __name__ == '__main__':
     unittest.main()

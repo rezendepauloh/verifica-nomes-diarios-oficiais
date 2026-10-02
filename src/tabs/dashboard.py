@@ -22,8 +22,8 @@ def format_highlight_link(row_item):
     else:
         return f"{link}#:~:text={nome_encoded}"
 
-def render_dashboard_tab(occurrences):
-    """Renderiza os filtros, tabela e gráficos das ocorrências."""
+def render_dashboard_tab(occurrences, items_per_page: int = 20):
+    """Renderiza os filtros, tabela paginada e gráficos das ocorrências."""
     if not occurrences:
         st.info("Nenhuma ocorrência encontrada até o momento. Clique no botão de varredura acima para buscar.")
         return
@@ -105,9 +105,19 @@ def render_dashboard_tab(occurrences):
         st.caption("💡 Clique em uma linha da tabela abaixo para abrir os detalhes completos em um modal.")
         
         if not filtered_df.empty:
+            from src.components.pagination import paginate_items, render_pagination_controls
+
+            # Paginação de registros
+            df_page, current_page, total_pages, total_items = paginate_items(
+                filtered_df,
+                page_key="ocorrencias_grid",
+                items_per_page=items_per_page
+            )
+
             selection_event = st.dataframe(
-                filtered_df[["Nome", "Fonte", "Data da Busca", "Link", "Status"]],
+                df_page[["Nome", "Fonte", "Data da Busca", "Link", "Status"]],
                 width='stretch',
+                hide_index=True,
                 on_select="rerun",
                 selection_mode="single-row",
                 key="occurrences_table",
@@ -120,8 +130,16 @@ def render_dashboard_tab(occurrences):
             selected_rows = selection_event.selection.rows if hasattr(selection_event, "selection") else []
             if selected_rows:
                 row_idx = selected_rows[0]
-                row_data = filtered_df.iloc[row_idx]
+                row_data = df_page.iloc[row_idx]
                 show_occurrence_details(row_data)
+
+            render_pagination_controls(
+                page_key="ocorrencias_grid",
+                current_page=current_page,
+                total_pages=total_pages,
+                total_items=total_items,
+                items_per_page=items_per_page
+            )
         else:
             st.info("Nenhuma ocorrência corresponde aos filtros aplicados.")
 

@@ -5,5 +5,10 @@ from .scan_control import render_scan_control
 from .details_modal import show_occurrence_details
 from .subtabs import render_subtabs
 from .metric_cards import render_metric_card, render_metric_cards
+from .pagination import (
+    render_items_per_page_selector,
+    paginate_items,
+    render_pagination_controls
+)
 
 

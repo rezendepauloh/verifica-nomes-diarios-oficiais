@@ -27,7 +27,7 @@ from src.database import (
 )
 from src.scrapers import is_scraper_implemented
 from src.scheduler import calculate_next_run, trigger_manual_test_scan, DAY_LABELS
-from src.config import check_scan_running
+from src.config import check_scan_running, format_br_datetime
 from src.components.subtabs import render_subtabs
 from src.components.metric_cards import render_metric_cards
 
@@ -41,16 +41,6 @@ def format_phone(val: str) -> str:
     elif len(digits) == 10:
         return f"({digits[:2]}) {digits[2:6]}-{digits[6:]}"
     return str(val)
-
-def format_br_datetime(val) -> str:
-    """Formata datas ISO ou strings para padrão brasileiro DD/MM/YYYY HH:MM:SS."""
-    if not val or pd.isna(val) or str(val).strip().lower() in ["none", "nan", ""]:
-        return "-"
-    try:
-        dt = pd.to_datetime(val)
-        return dt.strftime("%d/%m/%Y %H:%M:%S")
-    except Exception:
-        return str(val)
 
 CONFIG_SUBTABS = {
     "nomes": "👥 Nomes Monitorados",
@@ -428,8 +418,8 @@ def render_configuracoes_tab():
         status_label = "🟢 Ativo (Rodando em Background)" if is_enabled else "⏸️ Pausado"
         status_color = "#10b981" if is_enabled else "#94a3b8"
         freq_str = f"{len(saved_times)}x ao dia ({', '.join(saved_times)})" if saved_times else "Nenhum horário definido"
-        next_run_str = format_br_datetime(next_run) if is_enabled and next_run else ("Pausado" if not is_enabled else "Sem agendamento futuro")
-        last_run_str = format_br_datetime(last_run) if last_run else "Nenhuma execução registrada"
+        next_run_str = format_br_datetime(next_run, is_utc=False) if is_enabled and next_run else ("Pausado" if not is_enabled else "Sem agendamento futuro")
+        last_run_str = format_br_datetime(last_run, is_utc=False) if last_run else "Nenhuma execução registrada"
 
         render_metric_cards([
             {"title": "Status do Agendador", "value": status_label, "border_color": status_color},
@@ -549,8 +539,14 @@ def render_configuracoes_tab():
             if st.button("🔄 Atualizar Histórico", width="stretch"):
                 st.rerun()
 
-        history_rows = get_scan_history(limit=50)
+        history_rows = get_scan_history(limit=500)
         if history_rows:
+            from src.components.pagination import (
+                render_items_per_page_selector,
+                paginate_items,
+                render_pagination_controls
+            )
+
             hist_data = []
             for row in history_rows:
                 hid, exec_at, trig_type, new_recs, success, details = row
@@ -563,8 +559,27 @@ def render_configuracoes_tab():
                 })
 
             df_hist = pd.DataFrame(hist_data)
-            st.dataframe(
+
+            # Controles de Itens por Página do Histórico
+            c_per_page, _ = st.columns([1.5, 3.5])
+            with c_per_page:
+                hist_items_per_page = render_items_per_page_selector(
+                    key_prefix="cron_hist",
+                    options=[10, 20, 50, 100, "Todos"],
+                    default_index=0,
+                    label="📄 Registros por página:",
+                    container=c_per_page
+                )
+
+            # Fatiamento paginado
+            df_hist_page, current_p, total_p, total_it = paginate_items(
                 df_hist,
+                page_key="cron_history_grid",
+                items_per_page=hist_items_per_page
+            )
+
+            st.dataframe(
+                df_hist_page,
                 width="stretch",
                 hide_index=True,
                 column_config={
@@ -574,6 +589,14 @@ def render_configuracoes_tab():
                     "Resultado": st.column_config.TextColumn("Status", width="small"),
                     "Detalhes": st.column_config.TextColumn("Detalhes da Execução", width="large")
                 }
+            )
+
+            render_pagination_controls(
+                page_key="cron_history_grid",
+                current_page=current_p,
+                total_pages=total_p,
+                total_items=total_it,
+                items_per_page=hist_items_per_page
             )
         else:
             st.info("Nenhuma execução registrada no histórico ainda. Quando o agendador ou o teste rodarem, os registros aparecerão aqui.")

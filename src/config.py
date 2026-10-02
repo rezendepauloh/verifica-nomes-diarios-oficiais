@@ -16,12 +16,53 @@ ROOT_DIR = Path(__file__).parent.parent
 LOGS_DIR = ROOT_DIR / "logs"
 ASSETS_DIR = ROOT_DIR / "assets"
 DATA_DIR = ROOT_DIR / "data"
-if (DATA_DIR / "results.db").exists() or DATA_DIR.exists() or os.getenv("APP_ENV") == "prod":
-    DB_PATH = DATA_DIR / "results.db"
-else:
-    DB_PATH = ROOT_DIR / "results.db"
+DB_PATH = DATA_DIR / "results.db"
 
 PORT = os.getenv("PORT", "")
+TZ_NAME = os.getenv("TZ", "America/Campo_Grande").strip()
+
+def get_system_timezone():
+    """Retorna o objeto ZoneInfo configurado para o fuso horário da aplicação."""
+    from zoneinfo import ZoneInfo
+    try:
+        return ZoneInfo(os.getenv("TZ", "America/Campo_Grande").strip())
+    except Exception:
+        return ZoneInfo("America/Campo_Grande")
+
+def format_br_datetime(val, is_utc: bool = True) -> str:
+    """
+    Formata datas ISO, timestamps ou strings para o padrão brasileiro DD/MM/AAAA HH:MM:SS.
+    Por padrão (is_utc=True), converte datas registradas em UTC (padrão SQLite CURRENT_TIMESTAMP)
+    para o fuso horário local configurado (ex: America/Campo_Grande, UTC-4).
+    Caso is_utc=False, mantém o horário local direto (usado para próximos agendamentos pré-calculados).
+    """
+    if not val or str(val).strip().lower() in ["none", "nan", ""]:
+        return "-"
+    try:
+        from datetime import datetime, timezone
+        import pandas as pd
+        val_str = str(val).strip()
+        # Tratamento seguro caso venha com microssegundos ou separador T
+        if "T" in val_str:
+            dt = datetime.fromisoformat(val_str)
+        else:
+            dt = datetime.strptime(val_str[:19], "%Y-%m-%d %H:%M:%S")
+
+        target_tz = get_system_timezone()
+        if is_utc:
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            dt_local = dt.astimezone(target_tz)
+        else:
+            if dt.tzinfo is not None:
+                dt_local = dt.astimezone(target_tz)
+            else:
+                dt_local = dt
+
+        return dt_local.strftime("%d/%m/%Y %H:%M:%S")
+    except Exception:
+        return str(val)
+
 
 def get_monitored_names():
     """Retorna lista de nomes monitorados ativos do SQLite, com fallback para o .env."""

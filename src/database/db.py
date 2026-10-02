@@ -604,7 +604,7 @@ def record_scan_execution(trigger_type: str = "automático", new_records: int = 
         if 'conn' in locals():
             conn.close()
 
-def get_scan_history(limit: int = 50) -> list:
+def get_scan_history(limit: int = 200) -> list:
     """Retorna os últimos registros do histórico de execuções do cron/varredura."""
     try:
         conn = get_connection()
