@@ -361,7 +361,7 @@ run_unit_tests() {
 show_menu() {
     clear
     echo -e "${C_CYAN}${C_BOLD}╔══════════════════════════════════════════════════════════════╗${C_RESET}"
-    echo -e "${C_CYAN}${C_BOLD}║      VERIFICADOR DE DIÁRIOS OFICIAIS — DOCKER MANAGER       ║${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD}║      VERIFICADOR DE DIÁRIOS OFICIAIS — DOCKER MANAGER        ║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}║                                                              ║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_BOLD}Escolha uma opção:${C_RESET}                                          ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_GREEN}1${C_RESET} - Iniciar Aplicação (Docker Compose + Streamlit)          ${C_CYAN}${C_BOLD}║${C_RESET}"
@@ -369,7 +369,7 @@ show_menu() {
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_GREEN}3${C_RESET} - Ver logs do container em tempo real                     ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_GREEN}4${C_RESET} - Reconstruir Docker Compose (--no-cache)                 ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_GREEN}5${C_RESET} - Parar sistema (docker compose down)                     ${C_CYAN}${C_BOLD}║${C_RESET}"
-    echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_MAGENTA}6${C_RESET} - 🚀 Deploy no Mini PC (Dockge / Homelab)                  ${C_CYAN}${C_BOLD}║${C_RESET}"
+    echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_MAGENTA}6${C_RESET} - 🚀 Deploy no Mini PC (Dockge / Homelab)                 ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_YELLOW}7${C_RESET} - 🧪 Executar Testes Unitários (pytest)                   ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_RED}0${C_RESET} - Sair                                                    ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}╚══════════════════════════════════════════════════════════════╝${C_RESET}"

@@ -55,16 +55,18 @@ def show_occurrence_details(row):
     st.markdown("#### ⚙️ Gerenciar Status")
     status_novo = st.radio("Alterar status deste registro:", ["Pendente", "Lido"], index=0 if row['Status'] == "Pendente" else 1, horizontal=True)
     
+    def reset_table_selection():
+        # Incrementa o seed para recriar o widget limpo sem violar o ciclo de vida do Streamlit
+        st.session_state["occurrences_table_seed"] = st.session_state.get("occurrences_table_seed", 0) + 1
+
     col_salvar, col_fechar = st.columns(2)
     with col_salvar:
         if st.button("💾 Salvar Status", width='stretch'):
             update_status(row['ID'], status_novo)
-            if "occurrences_table" in st.session_state:
-                st.session_state["occurrences_table"] = {"selection": {"rows": [], "columns": []}}
+            reset_table_selection()
             st.success("Status atualizado!")
             st.rerun()
     with col_fechar:
         if st.button("Fechar", width='stretch'):
-            if "occurrences_table" in st.session_state:
-                st.session_state["occurrences_table"] = {"selection": {"rows": [], "columns": []}}
+            reset_table_selection()
             st.rerun()

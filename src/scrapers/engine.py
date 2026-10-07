@@ -79,8 +79,13 @@ def get_local_file_path(source_slug, url, custom_filename=None):
             ext = ".docx"
             
     if custom_filename:
+        # Remove prefixos indesejados como 'cloud_download' caso passem
+        clean_name = re.sub(r'^(cloud_download|download)\s*', '', custom_filename, flags=re.I).strip()
+        clean_name = clean_name.replace('–', '-').replace('—', '-')
         # Previne caracteres inválidos no sistema de arquivos para o nome customizado
-        filename = re.sub(r'[\\/*?:"<>|]', '_', custom_filename)
+        filename = re.sub(r'[\\/*?:"<>|]', '_', clean_name)
+        # Normaliza múltiplos sublinhados ou espaços
+        filename = re.sub(r'\s+', ' ', filename).strip()
         # Se não terminar com a extensão correta, adiciona ela
         if not filename.lower().endswith(ext.lower()):
             filename = f"{filename}{ext}"
@@ -385,6 +390,13 @@ def search_sanesul(name):
             if is_url_processed(doc_url, name):
                 continue
             
+            # Se for link externo para página de concurso da banca (ex: Instituto AOCP) e não um documento direto, ignora
+            parsed_path = urllib.parse.urlparse(doc_url).path.lower()
+            if not any(parsed_path.endswith(ext) for ext in [".pdf", ".docx", ".doc", ".zip", ".xlsx"]):
+                if "institutoaocp.org.br" in doc_url or "aocp" in doc_url:
+                    mark_url_processed(doc_url, name)
+                    continue
+            
             # 2. Obtém o texto do documento (usa cache em memória ou faz download)
             text_content = ""
             if doc_url in _sanesul_doc_cache:
@@ -598,22 +610,126 @@ def search_msgas(name):
     return results
 
 
+_crbm_normativas_cache = None
+_crbm_doc_cache = {}
+
 def search_crbm(name):
     """
     Pesquisa no site do Conselho Regional de Biomedicina 1ª Região (CRBM1).
-    Utiliza o sistema de pesquisa interno via query de WordPress.
+    1. Varredura textual em todas as Portarias e Normativas (PDFs) publicadas em /normativas/
+    2. Pesquisa de notícias e matérias no portal WordPress via ?s=
     """
+    global _crbm_normativas_cache, _crbm_doc_cache
+    from src.database import is_url_processed, mark_url_processed
+
     results = []
-    url = os.getenv("URL_CRBM")
-    if not url:
+    base_url = os.getenv("URL_CRBM", "https://crbm1.gov.br/").rstrip("/")
+    if not base_url:
         logger.warning(f"URL_CRBM não configurada no .env. Ignorando busca para {name}.")
         return results
 
-        
-    logger.info(f"Iniciando busca CRBM para {name} na URL: {url}")
+    logger.info(f"Iniciando busca CRBM 1ª Região para '{name}'...")
+
+    # -------------------------------------------------------------------------
+    # 1. Varredura nas Portarias e Normativas Oficiais (PDFs em /normativas/)
+    # -------------------------------------------------------------------------
+    normativas_url = f"{base_url}/normativas/"
+    try:
+        if _crbm_normativas_cache is None:
+            logger.info(f"CRBM: Carregando índice de portarias e normativas em {normativas_url}")
+            resp_norm = safe_download(normativas_url, timeout=15)
+            if resp_norm.status_code == 200:
+                soup_norm = BeautifulSoup(resp_norm.content, "html.parser")
+                docs_found = []
+                for div in soup_norm.find_all("div", class_="resolucao"):
+                    a_tag = div.find("a", href=True)
+                    if a_tag:
+                        doc_title = clean_text(a_tag.get_text())
+                        doc_link = urllib.parse.urljoin(normativas_url, a_tag["href"])
+                        docs_found.append((doc_title, doc_link))
+                _crbm_normativas_cache = docs_found
+            else:
+                logger.warning(f"CRBM: Não foi possível acessar /normativas/ (HTTP {resp_norm.status_code})")
+                _crbm_normativas_cache = []
+
+        logger.info(f"CRBM: {len(_crbm_normativas_cache)} portarias/normativas catalogadas para análise.")
+
+        for doc_title, doc_url in _crbm_normativas_cache:
+            if is_url_processed(doc_url, name):
+                continue
+
+            text_content = ""
+            if doc_url in _crbm_doc_cache:
+                text_content = _crbm_doc_cache[doc_url]
+            else:
+                local_path = get_local_file_path("crbm", doc_url, custom_filename=doc_title)
+                file_content = None
+                if os.path.exists(local_path):
+                    logger.info(f"CRBM: Carregando documento do cache local: {local_path}")
+                    try:
+                        with open(local_path, "rb") as lf:
+                            file_content = lf.read()
+                    except Exception as fe:
+                        logger.error(f"Erro ao ler arquivo local do CRBM {local_path}: {fe}")
+
+                if file_content is None:
+                    logger.info(f"CRBM: Baixando e analisando novo ato: {doc_title}")
+                    try:
+                        resp_file = safe_download(doc_url, timeout=20)
+                        if resp_file.status_code == 200:
+                            file_content = resp_file.content
+                            try:
+                                with open(local_path, "wb") as lf:
+                                    lf.write(file_content)
+                            except Exception as fe:
+                                logger.error(f"Erro ao salvar cache de ato do CRBM {local_path}: {fe}")
+                        elif resp_file.status_code == 404:
+                            mark_url_processed(doc_url, name)
+                            continue
+                        else:
+                            logger.warning(f"Erro ao baixar ato do CRBM {doc_url}: HTTP {resp_file.status_code}")
+                    except Exception as err_d:
+                        logger.error(f"Erro no download do ato {doc_url}: {err_d}")
+
+                if file_content:
+                    if doc_url.lower().endswith(".pdf"):
+                        try:
+                            with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+                                text_content = "\n".join([page.extract_text() or "" for page in pdf.pages])
+                        except Exception as pdf_err:
+                            logger.error(f"Erro ao ler PDF do CRBM ({doc_url}): {pdf_err}")
+                    _crbm_doc_cache[doc_url] = text_content
+
+            if text_content and name.lower() in text_content.lower():
+                lines = text_content.split("\n")
+                context_line = doc_title
+                for line in lines:
+                    if name.lower() in line.lower():
+                        context_line = clean_text(line)
+                        break
+
+                # Tenta extrair data da portaria ou do título (ex: ano)
+                date_match = re.search(r'(\d{2})/(\d{2})/(\d{4})', text_content)
+                doc_date = date_match.group(0) if date_match else datetime.today().strftime("%d/%m/%Y")
+
+                results.append({
+                    "name": name,
+                    "source": "CRBM 1ª Região",
+                    "date": doc_date,
+                    "link": doc_url,
+                    "context": f"{doc_title} | {context_line}"[:300]
+                })
+
+            mark_url_processed(doc_url, name)
+    except Exception as norm_err:
+        logger.error(f"Erro ao vasculhar portarias do CRBM: {norm_err}")
+
+    # -------------------------------------------------------------------------
+    # 2. Pesquisa de Notícias e Publicações no WordPress (via query ?s=)
+    # -------------------------------------------------------------------------
     try:
         encoded_name = urllib.parse.quote_plus(name)
-        search_url = f"{url}?s={encoded_name}"
+        search_url = f"{base_url}/?s={encoded_name}"
         response = requests.get(search_url, headers=HEADERS, timeout=15)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, "html.parser")
@@ -630,11 +746,10 @@ def search_crbm(name):
                         "link": link,
                         "context": text[:300] + "..." if len(text) > 300 else text
                     })
-            logger.info(f"Busca CRBM finalizada para {name}. Ocorrências encontradas: {len(results)}")
-        else:
-            logger.warning(f"Resposta inválida do CRBM para {name}: HTTP {response.status_code}")
     except Exception as e:
-        logger.error(f"Erro na busca do CRBM 1 para {name}: {e}")
+        logger.error(f"Erro na busca WordPress do CRBM 1 para {name}: {e}")
+
+    logger.info(f"Busca CRBM finalizada para {name}. Ocorrências encontradas: {len(results)}")
     return results
 
 
@@ -662,19 +777,36 @@ def search_dourados(name):
             
             # Encontra todos os links de edições nos resultados
             edition_links = []
+            
+            def parse_edition_tag(a_element):
+                if not a_element:
+                    return ""
+                # Faz cópia para não alterar outros nós e remove tags de ícone
+                a_copy = BeautifulSoup(str(a_element), "html.parser").find("a")
+                for icon in a_copy.find_all(["i", "span", "svg"]):
+                    icon.decompose()
+                text = clean_text(a_copy.get_text())
+                # Remove prefixos como 'cloud_download', 'download' e normaliza traços/espaços
+                text = re.sub(r'^(cloud_download|download)\s*', '', text, flags=re.I).strip()
+                text = text.replace('–', '-').replace('—', '-')
+                text = re.sub(r'\s+', ' ', text).strip()
+                return text
+
             for li in soup.select("div.licitacao-mes ul li, div.licitacao-mes li"):
                 a_tag = li.find("a", href=True)
                 if a_tag:
                     href = a_tag["href"]
-                    title = clean_text(a_tag.get_text())
-                    edition_links.append((title, href))
+                    title = parse_edition_tag(a_tag)
+                    if title:
+                        edition_links.append((title, href))
             
             # Se não achou na div.licitacao-mes, tenta buscar de forma genérica
             if not edition_links:
                 for a_tag in soup.find_all("a", href=True):
                     if "edicao-" in a_tag["href"] or "edição" in a_tag.get_text().lower():
-                        title = clean_text(a_tag.get_text())
-                        edition_links.append((title, a_tag["href"]))
+                        title = parse_edition_tag(a_tag)
+                        if title:
+                            edition_links.append((title, a_tag["href"]))
                         
             # Remove duplicados mantendo a ordem
             seen = set()
@@ -778,6 +910,93 @@ def search_dourados(name):
     return results
 
 
+def search_mpms(name: str):
+    """
+    Pesquisa atos e normas no portal oficial do Ministério Público de Mato Grosso do Sul (MPMS).
+    Endpoint: https://www.mpms.mp.br/atos-e-normas/listAll?atotit="<name>"&atocod=&pagina=<X>
+    """
+    results = []
+    base_url = os.getenv("URL_MPMS", "https://www.mpms.mp.br/atos-e-normas").rstrip("/")
+    if not base_url:
+        logger.warning(f"URL_MPMS não configurada no .env. Ignorando busca para {name}.")
+        return results
+
+    # Certifica-se de que a URL base aponte para o domínio correto para download
+    origin = "https://www.mpms.mp.br"
+    api_endpoint = f"{origin}/atos-e-normas/listAll"
+
+    logger.info(f"Iniciando busca Atos e Normas MPMS para: '{name}'")
+    
+    pagina = 1
+    max_paginas = 20  # Limite de segurança de paginação
+
+    while pagina <= max_paginas:
+        try:
+            params = {
+                "atotit": f'"{name}"',
+                "atocod": "",
+                "pagina": pagina
+            }
+            # timeout generoso e verify=False defensivo contra proxies corporativos
+            response = requests.get(api_endpoint, params=params, headers=HEADERS, timeout=20, verify=False)
+            
+            if response.status_code != 200:
+                logger.warning(f"MPMS: Resposta HTTP {response.status_code} na página {pagina} para {name}")
+                break
+
+            data = response.json()
+            atos = data.get("atos", [])
+            total = data.get("total", 0)
+
+            if not atos:
+                if pagina == 1:
+                    logger.info(f"MPMS: Nenhum ato encontrado para '{name}'.")
+                break
+
+            for ato in atos:
+                atocod = ato.get("atocod")
+                atonum = ato.get("atonum") or ""
+                atodtapub = ato.get("atodtapub") or ato.get("atodta") or ""
+                atodjnum = ato.get("atodjnum") or ""
+                atotit = ato.get("atotit") or ""
+                
+                # Link para download do documento original ou para o portal
+                link = f"{origin}/atos-e-normas/download-original/{atocod}" if atocod else f"{origin}/atos-e-normas"
+                
+                # Contexto descritivo limpo
+                context_limpo = clean_text(atotit)
+                descricao_extra = []
+                if atonum:
+                    descricao_extra.append(f"Ato: {atonum}")
+                if atodjnum:
+                    descricao_extra.append(f"DJ: {atodjnum}")
+                
+                prefixo = " | ".join(descricao_extra)
+                full_context = f"{prefixo} - {context_limpo}" if prefixo else context_limpo
+
+                results.append({
+                    "name": name,
+                    "source": "Ministério Público de MS",
+                    "date": atodtapub,
+                    "link": link,
+                    "context": full_context[:300]
+                })
+
+            # Verifica se já processou todos os registros
+            if len(atos) < 20 or (pagina * 20) >= total:
+                break
+
+            pagina += 1
+            time.sleep(0.3)  # Cortesia para não sobrecarregar o portal
+
+        except Exception as e:
+            logger.error(f"Erro na busca MPMS página {pagina} para {name}: {e}")
+            break
+
+    logger.info(f"Busca MPMS finalizada para {name}. Ocorrências encontradas: {len(results)}")
+    return results
+
+
 AVAILABLE_SCRAPERS = {
     "dou": {
         "func": search_dou,
@@ -820,6 +1039,12 @@ AVAILABLE_SCRAPERS = {
         "label": "Diário Oficial de Dourados (DO-Dourados)",
         "has_scraper": True,
         "description": "Download e varredura textual em PDFs de edições municipais"
+    },
+    "mpms": {
+        "func": search_mpms,
+        "label": "Ministério Público de MS (MPMS)",
+        "has_scraper": True,
+        "description": "Varredura na API oficial de Atos e Normas do portal do MPMS"
     },
 }
 

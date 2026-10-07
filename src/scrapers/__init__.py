@@ -8,5 +8,6 @@ from .engine import (
     search_sanesul,
     search_msgas,
     search_crbm,
-    search_dourados
+    search_dourados,
+    search_mpms
 )

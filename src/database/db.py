@@ -147,6 +147,7 @@ def seed_config_from_env_if_empty(force: bool = False):
                 ("msgas", "MS Gás (Concursos)", os.getenv("URL_MSGAS", "https://transparencia.msgas.com.br/Concursos"), "Editais e chamamentos da MS Gás"),
                 ("crbm", "CRBM 1ª Região", os.getenv("URL_CRBM", "https://crbm1.gov.br/"), "Conselho Regional de Biomedicina 1ª Região"),
                 ("dourados", "Diário Oficial de Dourados (DO-Dourados)", os.getenv("URL_DOURADOS", "https://do.dourados.ms.gov.br/"), "Edições municipais de Dourados/MS"),
+                ("mpms", "Ministério Público de MS (MPMS)", os.getenv("URL_MPMS", "https://www.mpms.mp.br/atos-e-normas"), "Atos e Normas Oficiais do MPMS"),
             ]
             for slug, label, url, desc in default_sources:
                 if url:

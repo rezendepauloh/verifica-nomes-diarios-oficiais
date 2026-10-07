@@ -11,6 +11,13 @@ from dotenv import load_dotenv
 # Carrega variáveis do arquivo .env
 load_dotenv()
 
+# Se estiver no Linux/Debian e houver o bundle do sistema com CAs locais atualizadas,
+# direciona o requests e OpenSSL para usá-lo em vez do certifi padrão isolado
+_sys_ca_bundle = "/etc/ssl/certs/ca-certificates.crt"
+if os.path.exists(_sys_ca_bundle):
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", _sys_ca_bundle)
+    os.environ.setdefault("SSL_CERT_FILE", _sys_ca_bundle)
+
 # Caminhos base
 ROOT_DIR = Path(__file__).parent.parent
 LOGS_DIR = ROOT_DIR / "logs"

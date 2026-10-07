@@ -114,13 +114,18 @@ def render_dashboard_tab(occurrences, items_per_page: int = 20):
                 items_per_page=items_per_page
             )
 
+            # Gerenciador de versão de chave para resetar seleção de forma segura no Streamlit
+            if "occurrences_table_seed" not in st.session_state:
+                st.session_state["occurrences_table_seed"] = 0
+
+            table_key = f"occurrences_table_{current_page}_{st.session_state['occurrences_table_seed']}"
             selection_event = st.dataframe(
                 df_page[["Nome", "Fonte", "Data da Busca", "Link", "Status"]],
                 width='stretch',
                 hide_index=True,
                 on_select="rerun",
                 selection_mode="single-row",
-                key="occurrences_table",
+                key=table_key,
                 column_config={
                     "Data da Busca": st.column_config.DateColumn("Data da Busca", format="DD/MM/YYYY"),
                     "Link": st.column_config.LinkColumn("Link", display_text="Abrir Link"),
@@ -130,8 +135,7 @@ def render_dashboard_tab(occurrences, items_per_page: int = 20):
             selected_rows = selection_event.selection.rows if hasattr(selection_event, "selection") else []
             if selected_rows:
                 row_idx = selected_rows[0]
-                row_data = df_page.iloc[row_idx]
-                show_occurrence_details(row_data)
+                st.session_state["modal_occurrence_to_open"] = df_page.iloc[row_idx].to_dict()
 
             render_pagination_controls(
                 page_key="ocorrencias_grid",
@@ -140,6 +144,11 @@ def render_dashboard_tab(occurrences, items_per_page: int = 20):
                 total_items=total_items,
                 items_per_page=items_per_page
             )
+
+            # Abre o modal consumindo o evento (pop) para garantir no máximo 1 abertura e evitar reabertura na paginação
+            if st.session_state.get("modal_occurrence_to_open"):
+                target_occurrence = st.session_state.pop("modal_occurrence_to_open")
+                show_occurrence_details(target_occurrence)
         else:
             st.info("Nenhuma ocorrência corresponde aos filtros aplicados.")
 

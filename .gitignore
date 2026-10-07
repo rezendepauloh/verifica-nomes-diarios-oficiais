@@ -31,3 +31,7 @@ logs/*
 logs/app.log
 .docker_build_hash
 temp/
+
+# Certificados
+certs/*.crt
+*.crt

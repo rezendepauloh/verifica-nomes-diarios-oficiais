@@ -40,6 +40,7 @@ class TestScraperHelpers(unittest.TestCase):
         self.assertTrue(is_scraper_implemented("dou"))
         self.assertTrue(is_scraper_implemented("doms"))
         self.assertTrue(is_scraper_implemented("sanesul"))
+        self.assertTrue(is_scraper_implemented("mpms"))
         # Fonte inexistente
         self.assertFalse(is_scraper_implemented("fonte_inexistente_xyz"))
 
