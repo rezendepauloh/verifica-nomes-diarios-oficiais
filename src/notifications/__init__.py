@@ -5,6 +5,7 @@ Módulo de notificações do sistema.
 from .callmebot import (
     normalize_phone,
     format_occurrence_message,
+    format_digest_message,
     send_whatsapp_message,
     test_callmebot_connection
 )
@@ -12,6 +13,7 @@ from .callmebot import (
 __all__ = [
     "normalize_phone",
     "format_occurrence_message",
+    "format_digest_message",
     "send_whatsapp_message",
     "test_callmebot_connection"
 ]

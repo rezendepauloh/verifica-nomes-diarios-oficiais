@@ -66,35 +66,37 @@ def main():
         novos = 0
         notificados = 0
         from src.database import get_whatsapp_notification_recipients
-        from src.notifications import send_whatsapp_message, format_occurrence_message
+        from src.notifications import send_whatsapp_message, format_digest_message
+        import time
 
         # Obtém todos os contatos ativos que devem receber alertas
         recipients = get_whatsapp_notification_recipients()
+        newly_found = []
 
         for item in found_items:
             is_new = save_occurrence(item["name"], item["source"], item["date"], item["link"], item["context"])
             if is_new:
                 novos += 1
-                if recipients:
-                    msg_text = format_occurrence_message(
-                        name=item["name"],
-                        source=item["source"],
-                        date_str=item["date"],
-                        link=item.get("link", ""),
-                        context=item.get("context", "")
+                newly_found.append(item)
+
+        # Dispara alertas consolidados para os destinatários se houver novos registros
+        if newly_found and recipients:
+            msg_text = format_digest_message(newly_found)
+            for idx, rec in enumerate(recipients):
+                try:
+                    sent = send_whatsapp_message(
+                        phone=rec["phone"],
+                        message=msg_text,
+                        apikey=rec.get("callmebot_apikey")
                     )
-                    # Dispara alerta imediato para cada pessoa cadastrada (Broadcast)
-                    for rec in recipients:
-                        try:
-                            sent = send_whatsapp_message(
-                                phone=rec["phone"],
-                                message=msg_text,
-                                apikey=rec.get("callmebot_apikey")
-                            )
-                            if sent:
-                                notificados += 1
-                        except Exception as ex_notif:
-                            logger.error(f"Erro ao disparar WhatsApp para '{rec['name']}' ({rec['phone']}): {ex_notif}")
+                    if sent:
+                        notificados += 1
+                    
+                    # Pausa de cortesia de 2 segundos entre destinatários para respeitar a taxa do CallMeBot
+                    if idx < len(recipients) - 1:
+                        time.sleep(2.0)
+                except Exception as ex_notif:
+                    logger.error(f"Erro ao disparar WhatsApp para '{rec['name']}' ({rec['phone']}): {ex_notif}")
 
         trigger_type = "automático"
         if len(sys.argv) > 3 and sys.argv[3] != "null":

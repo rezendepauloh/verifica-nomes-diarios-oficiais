@@ -74,6 +74,58 @@ def format_occurrence_message(name: str, source: str, date_str: str, link: str, 
 
     return "\n".join(msg_lines)
 
+def format_digest_message(items: list[dict]) -> str:
+    """
+    Gera uma mensagem consolidada (digest) quando há múltiplas novas ocorrências na mesma varredura,
+    evitando extrapolar o rate limit do CallMeBot.
+    """
+    total = len(items)
+    if total == 0:
+        return ""
+    if total == 1:
+        item = items[0]
+        return format_occurrence_message(
+            name=item["name"],
+            source=item["source"],
+            date_str=item["date"],
+            link=item.get("link", ""),
+            context=item.get("context", "")
+        )
+
+    # Coleta os nomes distintos encontrados
+    nomes_unicos = sorted(list(set(it["name"] for it in items)))
+    nomes_str = ", ".join(nomes_unicos)
+
+    msg_lines = [
+        "🚨 *ALERTA CONSOLIDADO: NOVAS PUBLICAÇÕES* 🚨",
+        "",
+        f"Foram encontradas *{total}* novas publicações nesta varredura!",
+        f"👤 *Nomes:* {nomes_str}",
+        "",
+        "📋 *Resumo das Ocorrências:*"
+    ]
+
+    # Exibe detalhes das primeiras (até 4) para a mensagem não ficar gigantesca
+    limite_exibicao = 4
+    for i, it in enumerate(items[:limite_exibicao], 1):
+        context_resumo = (it.get("context") or "").strip()
+        if len(context_resumo) > 110:
+            context_resumo = context_resumo[:107] + "..."
+        link = (it.get("link") or "").strip()
+
+        msg_lines.append(f"\n*{i}.* [{it['source']}] {it['name']} ({it['date']})")
+        if context_resumo:
+            msg_lines.append(f"   📝 \"{context_resumo}\"")
+        if link:
+            msg_lines.append(f"   🔗 {link}")
+
+    if total > limite_exibicao:
+        msg_lines.append(f"\n... e mais *{total - limite_exibicao}* ocorrência(s).")
+
+    msg_lines.append("")
+    msg_lines.append("📌 *Acesse o painel do sistema para visualizar e gerenciar a lista completa.*")
+    return "\n".join(msg_lines)
+
 def send_whatsapp_message(phone: str, message: str, apikey: str = None) -> bool:
     """
     Envia uma mensagem de WhatsApp via CallMeBot.
@@ -81,7 +133,7 @@ def send_whatsapp_message(phone: str, message: str, apikey: str = None) -> bool:
     message: texto da mensagem
     apikey: chave da API do CallMeBot (se None, tenta fallback no .env CALLMEBOT_API_KEY)
     
-    Retorna True se enviada com sucesso, False caso contrário.
+    Retorna True se enviada ou enfileirada com sucesso, False caso contrário.
     """
     dest_phone = normalize_phone(phone)
     if not dest_phone:
@@ -104,14 +156,24 @@ def send_whatsapp_message(phone: str, message: str, apikey: str = None) -> bool:
         logger.info(f"Disparando WhatsApp via CallMeBot para o número {dest_phone}...")
         response = requests.get(CALLMEBOT_URL, params=params, timeout=15)
         
-        # O CallMeBot retorna status 200 com mensagem no corpo HTML/texto (ex: "Message queued", "Success", etc.)
-        if response.status_code == 200:
-            resp_text = response.text.lower()
+        resp_text = response.text.lower()
+
+        # O CallMeBot retorna status 200 (sucesso imediato) ou 210 (enfileirado com sucesso)
+        if response.status_code in (200, 210):
             if "error" in resp_text or "invalid apikey" in resp_text or "not registered" in resp_text:
                 logger.error(f"Erro reportado pela API do CallMeBot para {dest_phone}: {response.text}")
                 return False
-            logger.success(f"Notificação WhatsApp enviada com sucesso para {dest_phone} via CallMeBot!")
+            if response.status_code == 210 or "queue" in resp_text:
+                logger.info(f"Notificação WhatsApp aceita e colocada na fila pelo CallMeBot para {dest_phone}!")
+            else:
+                logger.success(f"Notificação WhatsApp enviada com sucesso para {dest_phone} via CallMeBot!")
             return True
+        elif response.status_code == 209:
+            logger.warning(
+                f"Rate limit atingido no CallMeBot para {dest_phone} (HTTP 209: limite de 48 msgs/240 min). "
+                f"Aguardando liberação da fila. Resposta: {response.text}"
+            )
+            return False
         else:
             logger.error(f"Falha ao enviar WhatsApp para {dest_phone}. Status HTTP: {response.status_code}. Resposta: {response.text}")
             return False

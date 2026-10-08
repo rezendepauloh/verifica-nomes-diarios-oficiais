@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock
 from src.notifications.callmebot import (
     normalize_phone,
     format_occurrence_message,
+    format_digest_message,
     send_whatsapp_message,
     test_callmebot_connection as api_test_callmebot
 )
@@ -60,12 +61,32 @@ class TestFormatMessage(unittest.TestCase):
         self.assertIn("...", msg)
         self.assertLess(len(msg), 500)
 
+    def test_format_digest_message_single(self):
+        items = [{"name": "Paulo", "source": "DOU", "date": "24/09/2026", "link": "http://x", "context": "abc"}]
+        msg = format_digest_message(items)
+        self.assertIn("🚨 *ALERTA DE DIÁRIO OFICIAL / CONCURSO* 🚨", msg)
+        self.assertIn("*Paulo*", msg)
+
+    def test_format_digest_message_multiple(self):
+        items = [
+            {"name": "Paulo", "source": "MPMS", "date": "24/09/2026", "link": "http://x1", "context": "Aprovado"},
+            {"name": "Paulo", "source": "DO-MS", "date": "25/09/2026", "link": "http://x2", "context": "Nomeado"},
+            {"name": "Maria", "source": "DOU", "date": "26/09/2026", "link": "http://x3", "context": "Convocada"},
+        ]
+        msg = format_digest_message(items)
+        self.assertIn("🚨 *ALERTA CONSOLIDADO: NOVAS PUBLICAÇÕES* 🚨", msg)
+        self.assertIn("*3* novas publicações", msg)
+        self.assertIn("Maria, Paulo", msg)
+        self.assertIn("[MPMS]", msg)
+        self.assertIn("[DO-MS]", msg)
+        self.assertIn("[DOU]", msg)
+
 
 class TestSendWhatsAppMessage(unittest.TestCase):
     """Testa o disparo HTTP para o CallMeBot usando mocks."""
 
     @patch("requests.get")
-    def test_send_success(self, mock_get):
+    def test_send_success_200(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.text = "Message queued."
@@ -77,6 +98,26 @@ class TestSendWhatsAppMessage(unittest.TestCase):
         args, kwargs = mock_get.call_args
         self.assertEqual(kwargs["params"]["phone"], "556792471379")
         self.assertEqual(kwargs["params"]["apikey"], "123456")
+
+    @patch("requests.get")
+    def test_send_success_210_queued(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 210
+        mock_resp.text = "<p>Message queued. You will receive it in a few seconds."
+        mock_get.return_value = mock_resp
+
+        result = send_whatsapp_message("(67) 99247-1379", "Mensagem de teste", apikey="123456")
+        self.assertTrue(result)
+
+    @patch("requests.get")
+    def test_send_rate_limit_209(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 209
+        mock_resp.text = "ERROR: There is currently a limit of 48 messages per 240 minutes."
+        mock_get.return_value = mock_resp
+
+        result = send_whatsapp_message("(67) 99247-1379", "Mensagem de teste", apikey="123456")
+        self.assertFalse(result)
 
     def test_send_missing_phone(self):
         self.assertFalse(send_whatsapp_message("", "Texto", apikey="123456"))
