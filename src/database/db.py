@@ -135,27 +135,24 @@ def seed_config_from_env_if_empty(force: bool = False):
                         ON CONFLICT(name) DO UPDATE SET active=1
                     """, (name,))
 
-        # 2. Fontes Padrão
-        cursor.execute("SELECT COUNT(*) FROM monitored_sources")
-        sources_count = cursor.fetchone()[0]
-        if sources_count == 0 or force:
-            default_sources = [
-                ("dou", "Diário Oficial da União (DOU)", os.getenv("URL_DOU", "https://www.in.gov.br/leiturajornal"), "Busca oficial da Imprensa Nacional"),
-                ("doms", "Diário Oficial de MS (DO-MS)", os.getenv("URL_DOMS", "https://www.diariooficial.ms.gov.br"), "API REST do Diário Oficial do Estado de MS"),
-                ("ifms", "IFMS (SUAP)", os.getenv("URL_IFMS", "https://suap.ifms.edu.br/bse/consulta_publica/"), "Boletins de serviço e editais do IFMS"),
-                ("sanesul", "Sanesul (Concursos)", os.getenv("URL_SANESUL", "https://www.sanesul.ms.gov.br/concursos-e-processos-seletivos"), "Processos seletivos e convocações Sanesul"),
-                ("msgas", "MS Gás (Concursos)", os.getenv("URL_MSGAS", "https://transparencia.msgas.com.br/Concursos"), "Editais e chamamentos da MS Gás"),
-                ("crbm", "CRBM 1ª Região", os.getenv("URL_CRBM", "https://crbm1.gov.br/"), "Conselho Regional de Biomedicina 1ª Região"),
-                ("dourados", "Diário Oficial de Dourados (DO-Dourados)", os.getenv("URL_DOURADOS", "https://do.dourados.ms.gov.br/"), "Edições municipais de Dourados/MS"),
-                ("mpms", "Ministério Público de MS (MPMS)", os.getenv("URL_MPMS", "https://www.mpms.mp.br/atos-e-normas"), "Atos e Normas Oficiais do MPMS"),
-            ]
-            for slug, label, url, desc in default_sources:
-                if url:
-                    cursor.execute("""
-                        INSERT INTO monitored_sources (slug, name, url, description, active)
-                        VALUES (?, ?, ?, ?, 1)
-                        ON CONFLICT(slug) DO UPDATE SET url=excluded.url, name=excluded.name
-                    """, (slug, label, url, desc))
+        # 2. Fontes Padrão (garante que fontes adicionadas ao código entrem no banco)
+        default_sources = [
+            ("dou", "Diário Oficial da União (DOU)", os.getenv("URL_DOU", "https://www.in.gov.br/leiturajornal"), "Busca oficial da Imprensa Nacional"),
+            ("doms", "Diário Oficial de MS (DO-MS)", os.getenv("URL_DOMS", "https://www.diariooficial.ms.gov.br"), "API REST do Diário Oficial do Estado de MS"),
+            ("ifms", "IFMS (SUAP)", os.getenv("URL_IFMS", "https://suap.ifms.edu.br/bse/consulta_publica/"), "Boletins de serviço e editais do IFMS"),
+            ("sanesul", "Sanesul (Concursos)", os.getenv("URL_SANESUL", "https://www.sanesul.ms.gov.br/concursos-e-processos-seletivos"), "Processos seletivos e convocações Sanesul"),
+            ("msgas", "MS Gás (Concursos)", os.getenv("URL_MSGAS", "https://transparencia.msgas.com.br/Concursos"), "Editais e chamamentos da MS Gás"),
+            ("crbm", "CRBM 1ª Região", os.getenv("URL_CRBM", "https://crbm1.gov.br/"), "Conselho Regional de Biomedicina 1ª Região"),
+            ("dourados", "Diário Oficial de Dourados (DO-Dourados)", os.getenv("URL_DOURADOS", "https://do.dourados.ms.gov.br/"), "Edições municipais de Dourados/MS"),
+            ("mpms", "Ministério Público de MS (MPMS)", os.getenv("URL_MPMS", "https://www.mpms.mp.br/atos-e-normas"), "Atos e Normas Oficiais do MPMS"),
+        ]
+        for slug, label, url, desc in default_sources:
+            if url:
+                cursor.execute("""
+                    INSERT INTO monitored_sources (slug, name, url, description, active)
+                    VALUES (?, ?, ?, ?, 1)
+                    ON CONFLICT(slug) DO UPDATE SET url=excluded.url, name=excluded.name
+                """, (slug, label, url, desc))
 
         conn.commit()
     except Exception as e:
