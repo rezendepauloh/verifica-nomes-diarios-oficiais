@@ -1,135 +1,80 @@
-# 🔍 Monitor de Diários Oficiais & Concursos
+# 🔍 Verifica Nomes em Diários Oficiais & Central de Editais
 
-Aplicação premium em Python e Streamlit desenvolvida para realizar varreduras automatizadas, em tempo real, em diversas fontes oficiais em busca de nomes cadastrados no sistema. As ocorrências encontradas são salvas de forma incremental em um banco de dados relacional SQLite (`data/results.db`) e exibidas em uma interface web rica e moderna.
+Aplicação Python/Streamlit desenvolvida para realizar varreduras automatizadas em diversas fontes oficiais em busca de nomes monitorados, além de oferecer uma **Central de Editais & Planejamento Inteligente de Concursos Públicos** para **Paulo** e **Kamila**.
 
-O sistema conta com **Página Central de Configurações** para gestão de pessoas monitoradas (incluindo números de telefone/WhatsApp para futuras notificações) e portais de dados com verificação dinâmica de integração (`✓ Scraper Ativo` vs `❌ Sem Scraper`), além de suporte a deploy automatizado no Homelab / Mini PC com Dockge.
+As ocorrências e editais são armazenados de forma incremental em um banco de dados relacional SQLite (`data/results.db`) e exibidos em uma interface web rica, moderna e responsiva.
 
 ---
 
 ## 🛠️ Tecnologias Utilizadas
 
-- **Core**: Python 3.11+
-- **Interface Gráfica**: Streamlit (estética premium, suporte a temas claro/escuro, cards métricos, abas nativas e modais)
-- **Banco de Dados**: SQLite Relacional com migrações automáticas e volume persistente em `./data/results.db`
-- **Web Scraping & Parsing**:
-  - `requests` (Requisições HTTP robustas com persistência de sessão e suporte a POST/CSRF)
-  - `beautifulsoup4` (Parsing de estruturas de páginas HTML)
-  - `pdfplumber` (Extração em memória e varredura de textos em arquivos PDF)
-  - `zipfile` (Parsing nativo em memória de documentos do Microsoft Word `.docx`)
-- **Infraestrutura & Deploy**:
-  - Docker & Docker Compose (ambientes de desenvolvimento e produção desacoplados)
-  - Pipeline de Deploy remoto via `rsync` e SSH para Mini PC / Homelab gerenciado via Dockge
+- **Core**: Python 3.12+
+- **Interface Gráfica**: Streamlit com paleta escura (#0e1117 / #11141b) e acentos azuis (#2563eb / #3b82f6), cards métricos, menus contextuais e modais.
+- **Banco de Dados**: SQLite Relacional com migrações automáticas e integridade referencial (`data/results.db`).
+- **Parsing de PDFs & Editais**: `pdfplumber` para extração de textos e tabelas estruturadas; heurísticas e regex para cronogramas e disciplinas; suporte opcional à **API do Google Gemini** para refinamento com IA.
+- **Integração com Bancas**:
+  - API REST oficial do **Cebraspe** (`apis.cebraspe.org.br`) para mapeamento automático de retificações e comunicados.
+  - Scraper especializado para o portal da **FAPEC** (`portal.concurso.fundacaofapec.org.br`).
+  - Crawler genérico com `BeautifulSoup` para bancas tradicionais.
+- **Notificações**: Integração leve com a API do **CallMeBot** para envio de alertas instantâneos no WhatsApp.
+- **Exportação de Calendários**: Gerador RFC-5545 (`.ics`) compatível com o Google Agenda e atalhos de 1 clique para agendamento web.
+- **Infraestrutura**: Docker & Docker Compose com suporte a deploy no Homelab / Mini PC (Dockge).
 
 ---
 
-## 📂 Estrutura do Projeto
+## 📚 Central de Documentação Técnica (`Docs/`)
+
+O repositório conta com uma central de documentação rica e modular no diretório [`Docs/`](Docs/README.md):
+
+- 📖 **[Central de Editais e Planejamento de Concursos](Docs/guias/central_editais_e_concursos.md)**: Manual de cadastro, verticalização e visualizador de PDFs.
+- 📅 **[Cronograma & Integração com Google Agenda](Docs/guias/cronograma_e_google_agenda.md)**: Fatiamento de períodos, padrão de títulos e exportação `.ics`.
+- 🤖 **[Robô de Retificações & Bancas](Docs/guias/retificacoes_e_robos_de_bancas.md)**: Funcionamento das APIs, scrapers e mesclagem não-destrutiva de dados.
+- 🏛️ **[Estrutura de Slugs & Uploads](Docs/arquitetura/estrutura_de_diretorios_slugs.md)**: Armazenamento em `uploads/editais/{slug}/` e nomes amigáveis de arquivos.
+- 🏛️ **[Modelagem do Banco de Dados](Docs/arquitetura/modelagem_banco_de_dados.md)**: Schemas das tabelas SQLite e histórico de documentos.
+- 🧪 **[Suíte de Testes Automatizados](Docs/testes/suite_de_testes_automatizados.md)**: Guia de execução dos testes com pytest.
+- 🚨 **[Registro da Issue #1 (Google Agenda)](Docs/issues/convidados_google_agenda.md)**: Documentação técnica da pendência de convidados via `.ics`.
+- 🤖 **[Diretrizes para Agentes de IA (AGENTS.md)](AGENTS.md)**: Protocolo de engenharia e regras de desenvolvimento autônomo.
+
+---
+
+## 📂 Estrutura do Repositório
 
 ```text
-├── app.py                      # Ponto de entrada leve (orquestra a interface e abas em src/)
-├── 00-iniciar.sh               # CLI unificado para Linux/WSL (Docker Manager, Testes e Deploy Homelab)
-├── 00-iniciar.cmd              # Script de inicialização rápida para Windows (Menu interativo e Testes)
+├── app.py                      # Ponto de entrada Streamlit (navegação entre abas)
+├── AGENTS.md                   # Protocolo obrigatório para agentes de IA (Antigravity/Claude/Gemini)
+├── Docs/                       # Central unificada de documentação técnica e guias
+├── 00-iniciar.sh               # CLI unificado para Linux/WSL (Docker, Testes e Homelab)
+├── 00-iniciar.cmd              # Script de inicialização rápida para Windows
 ├── Dockerfile                  # Imagem Docker otimizada baseada em Python 3.12-slim
-├── docker-compose.yml          # Orquestrador local com volumes e live-reload (sem .venv no host)
-├── docker-compose.server.yml   # Orquestrador de produção para o servidor / Mini PC (Dockge)
-├── requirements.txt            # Dependências Python do projeto
+├── docker-compose.yml          # Orquestrador local com volumes e live-reload (porta 8504)
 ├── data/
-│   └── results.db              # Banco de dados SQLite persistente (occurrences, names, sources, schedule, history)
-├── .env                        # Variáveis de ambiente (Porta, Homelab SSH, fallback inicial)
-├── .env-example                # Modelo de variáveis de ambiente
+│   └── results.db              # Banco de dados SQLite persistente
+├── uploads/
+│   └── editais/
+│       └── {slug_concurso}/    # Editais originais e retificações organizados por concurso
 ├── assets/
-│   └── css/
-│       └── styles.css          # Estilos CSS modernos, temas claro/escuro e fix de abas (Outfit)
-├── tests/                      # Suíte de testes automatizados com relatório colorido
-│   ├── run_all.py              # Runner unificado com CLI colorido e métricas de tempo
-│   ├── test_helpers.py         # Mocks universais transparentes (dotenv, pdfplumber, bs4, streamlit, pandas)
-│   ├── conftest.py             # Fixtures de isolamento do banco SQLite temporário
-│   ├── unit/                   # Testes unitários puros
-│   │   ├── test_database.py    # Testes de persistência, deduplicação, histórico e consultas
-│   │   ├── test_notifications.py# Testes do CallMeBot e normalização de telefones BR
-│   │   ├── test_scheduler.py   # Testes de cálculo determinístico de agendamentos futuros
-│   │   └── test_scrapers.py    # Testes de limpeza de texto, JSON e robôs
-│   └── integration/            # Testes de fluxo e ponta a ponta
-│       └── test_scan_flow.py   # Fluxo de detecção de edital inédito e disparo de notificação
+│   └── css/styles.css          # Folhas de estilo personalizadas (Tema escuro)
+├── tests/                      # Suíte com 58 testes automatizados (pytest)
+│   ├── conftest.py             # Fixtures e isolamento de banco temporário
+│   ├── run_all.py              # Runner de testes standalone colorido
+│   ├── unit/                   # Testes unitários (editais, banco, scrapers, scheduler)
+│   └── integration/            # Testes de integração de fluxo
 └── src/
-    ├── run_scan.py             # Script de varredura em segundo plano (CLI / Subprocesso) com registro de histórico
-    ├── config.py               # Variáveis de ambiente, caminhos e controle de lock/processos
-    ├── logger.py               # Logging com SafeStreamWrapper e ANSIColoredFormatter
-    ├── terminal.py             # Utilitário de cores ANSI, molduras e formatação no console
-    ├── notifications/
-    │   ├── __init__.py
-    │   └── callmebot.py        # Integração e disparador de alertas WhatsApp via CallMeBot
-    ├── database/
-    │   ├── __init__.py
-    │   └── db.py               # Camada de banco de dados SQLite (occurrences, names, sources, schedule, history)
-    ├── scheduler/
-    │   ├── __init__.py
-    │   └── engine.py           # Agendador de varreduras em background (Singleton Thread Daemon)
-    ├── scrapers/
-    │   ├── __init__.py
-    │   └── engine.py           # Motores de busca/crawlers das fontes oficiais monitoradas com AVAILABLE_SCRAPERS
-    ├── components/
-    │   ├── __init__.py
-    │   ├── header.py           # Cabeçalho visual com gradiente e títulos
-    │   ├── subtabs.py          # Componente de sub-navegação moderna via query parameters (?tab=slug, ?subtab=slug)
-    │   ├── pagination.py       # Componente reutilizável de paginação e seletor ItemsPerPage (10, 20, 50, 100, Todos)
-    │   ├── sidebar.py          # Barra lateral dinâmica com seleção de nomes/fontes ativas e seletor de paginação
-    │   ├── metrics.py          # Cards de indicadores (Total, Pendentes e Lidos)
-    │   ├── metric_cards.py     # Componente flexível e adaptável ao tema claro/escuro de cards métricos
-    │   ├── scan_control.py     # Botão e visualizador de progresso da varredura em background
-    │   └── details_modal.py    # Modal de detalhes da ocorrência e gerenciamento de status (width="large")
-    └── tabs/
-        ├── __init__.py
-        ├── dashboard.py        # Tabela interativa paginada com filtros dinâmicos e gráfico por fonte
-        └── configuracoes.py    # Gestão de Nomes, WhatsApp, Fontes, Agendamento (com histórico paginado) e Backup
+    ├── config.py               # Constantes, timezone, slugs e diretórios
+    ├── logger.py               # Logging centralizado com loguru
+    ├── terminal.py             # Utilitários de saída colorida ANSI
+    ├── database/               # Camada SQLite (CRUD de ocorrências, nomes e editais)
+    ├── scrapers/               # Motores de busca nos diários oficiais (DOU, DO-MS, etc.)
+    ├── notifications/          # Integração com WhatsApp (CallMeBot)
+    ├── scheduler/              # Agendador cron autônomo em segundo plano
+    ├── editais/                # Módulo da Central de Editais
+    │   ├── pdf_parser.py       # Extração de textos e tabelas via pdfplumber
+    │   ├── extractor_local.py  # Regex e heurísticas para cronograma e verticalizado
+    │   ├── extractor_ai.py     # Refinamento opcional com Gemini IA
+    │   ├── calendar_utils.py   # Gerador .ics RFC-5545 e status dinâmico
+    │   └── updater.py          # Robô Cebraspe (API), FAPEC (scraper) e merge
+    └── tabs/                   # Telas Streamlit (dashboard, editais, configuracoes)
 ```
-
----
-
-## ⚙️ Painel de Configurações Dinâmico
-
-O sistema elimina o acoplamento estático com o `.env` através da aba **⚙️ Configurações & Fontes**:
-
-1. **👥 Gestão de Pessoas & Nomes Monitorados**:
-   - Cadastro de novos nomes completos e **número de telefone / WhatsApp com DDD** formatado: `(XX) XXXXX-XXXX`.
-   - Modais unificados (`@st.dialog`) para cadastro e edição direta ao clicar nas linhas da tabela.
-   - Alternância de status ativo/inativo e exclusão com 1 clique.
-   - Os nomes ativos alimentam instantaneamente a barra lateral e as rotinas de varredura.
-2. **🌐 Fontes & Diários Oficiais**:
-   - Cadastro de novos portais oficiais (`slug`, nome, URL e descrição).
-   - **Ticket de Status de Scraper**:
-     - `✓ Scraper Ativo`: Robô de raspagem web já programado no motor (`engine.py`).
-     - `❌ Sem Scraper`: Fonte cadastrada no sistema aguardando desenvolvimento da função de coleta.
-3. **⏰ Agendamento Automático (Cron / Scheduler Dinâmico)**:
-   - Configuração de dias da semana (ex: Segunda a Sexta, ou incluindo finais de semana).
-   - Definição de horários de execução diária no formato 24h (ex: `08:00`, ou múltiplos como `08:00, 14:00`).
-   - Monitoramento em background autônomo sem travar a interface web e com prevenção de execuções concorrentes.
-   - **Fuso Horário Local Preciso**: Suporte total a fusos horários brasileiros via variável `TZ` no `.env` (padrão `America/Campo_Grande` / GMT-4), convertendo automaticamente timestamps UTC gravados no SQLite para o relógio local exato.
-   - **Tabela de Histórico de Execuções do Cron Paginada**: exibe em tempo real o histórico de execuções autônomas e manuais com data/hora em `DD/MM/AAAA HH:MM:SS`, detecção de novos registros (`✨ Sim (X)` ou `0 (Nenhum)`), status (`✅ Sucesso` / `❌ Falha`) e paginação com seletor de registros por página (`10, 20, 50, 100, Todos`).
-   - Botão para disparo de teste manual imediato.
-4. **📄 Paginação Inteligente (ItemsPerPage)**:
-   - Paginação idêntica ao ecossistema de referência (`automacao-chamados-sti`), implementada tanto na **Tabela Principal de Ocorrências** quanto no **Histórico de Execuções do Agendador (Cron)**.
-   - Seletor de itens por página na barra lateral e botões de navegação numerados com reticências (`...`), `⬅️ Anterior` e `Próxima ➡️`.
-5. **📲 Alertas e Notificações no WhatsApp (CallMeBot)**:
-   - Notificação automática no WhatsApp para cada pessoa monitorada assim que uma **nova ocorrência inédita** for detectada.
-   - Integração leve, rápida e gratuita via **CallMeBot**:
-     - Cada usuário obtém sua própria API Key enviando a mensagem `I allow callmebot to send me messages` para o WhatsApp **+34 694 23 41 84**.
-     - A chave é salva no cadastro do nome monitorado na aba Configurações.
-     - Botão de **"📲 Testar Envio"** em tempo real no modal para checar o funcionamento instantaneamente.
-     - Suporte opcional à variável `CALLMEBOT_API_KEY` no `.env` como chave global/fallback.
-6. **💾 Sincronização & Migração**:
-   - Botão para reimportar dados do `.env` caso necessário, com migrações automáticas de schema relacional.
-
----
-
-## 📡 Fontes Oficiais Pré-Integradas (`✓ Scraper Ativo`)
-
-1. **Diário Oficial da União (DOU)** - Varredura via consulta de busca integrada da Imprensa Nacional.
-2. **Diário Oficial de MS (DO-MS)** - Integração com a API REST oficial do Diário do Estado de Mato Grosso do Sul.
-3. **IFMS (SUAP)** - Pesquisa via formulário POST autenticado por token CSRF dinâmico nos Boletins de Serviço.
-4. **Sanesul (Concursos)** - Varredura incremental de todos os editais de 2025/2026 com extração e busca de nomes dentro de PDFs e DOCX direto na memória, acelerado por cache de URLs processadas.
-5. **MS Gás (Concursos)** - Varredura em páginas de editais de concursos e seleções.
-6. **CRBM 1ª Região** - Monitoramento via sistema interno de buscas baseada no WordPress.
-7. **Diário Oficial de Dourados (DO-Dourados)** - Busca textual em edições com download automático de PDFs.
 
 ---
 
@@ -142,36 +87,19 @@ cd verifica-nomes-diarios-oficiais
 ```
 
 ### 2. Configurar o `.env`
-Copie o arquivo de exemplo:
 ```bash
 cp .env-example .env
 ```
-Defina a porta local (ex: `PORT=8503`) e, se for utilizar deploy no homelab, as variáveis `HOMELAB_*`.
 
-### 3. Iniciar a Aplicação
-
-#### No Linux / WSL (CLI Unificado):
-```bash
-./00-iniciar.sh
-```
-Atalhos úteis via CLI:
-- `./00-iniciar.sh --start` : Sobe a aplicação local e abre o navegador.
-- `./00-iniciar.sh --scan` : Executa uma varredura manual em segundo plano.
-- `./00-iniciar.sh --logs` : Acompanha os logs em tempo real do container.
-- `./00-iniciar.sh --rebuild` : Reconstrói a imagem Docker.
-- `./00-iniciar.sh --test` : Executa a suíte de testes completa (via runner colorido `run_all.py` / pytest).
-- `./00-iniciar.sh --deploy` : Executa o pipeline de deploy automatizado no Homelab / Mini PC (Dockge).
-
-#### No Windows:
-Dê duplo clique no arquivo:
-```bat
-00-iniciar.cmd
-```
-
-#### Via Docker Compose:
+### 3. Iniciar com Docker Compose
 ```bash
 docker compose up -d --build
 ```
-Acesse o painel web em: `http://localhost:8503`
+Acesse o painel web em: `http://localhost:8504`
 
-
+### 4. Executar os Testes Automatizados
+```bash
+pytest tests/ -v
+# ou via runner local:
+./00-iniciar.sh --test
+```

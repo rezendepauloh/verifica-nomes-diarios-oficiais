@@ -7,3 +7,7 @@ __pycache__/
 *.log
 logs/
  diários_oficiais_scan.lock
+data/
+uploads/
+temp/
+.pytest_cache/

@@ -253,11 +253,11 @@ deploy_homelab() {
     local USER="${HOMELAB_USER:-umbrel}"
     local PORT_SSH="${HOMELAB_PORT:-22}"
     local DEST_DIR="${HOMELAB_DEST_DIR:-/home/umbrel/umbrelos-scripts/compose/verifica-nomes-diarios-oficiais}"
-    local SSH_KEY="${HOMELAB_SSH_KEY:-~/.ssh/id_ed25519}"
+    local SSH_KEY="${HOMELAB_SSH_KEY:-$HOME/.ssh/id_ed25519}"
     SSH_KEY="${SSH_KEY/#\~/$HOME}"
 
-    local SSH_OPTS="-p ${PORT_SSH} -o StrictHostKeyChecking=accept-new"
-    local SCP_OPTS="-P ${PORT_SSH} -o StrictHostKeyChecking=accept-new"
+    local SSH_OPTS="-p ${PORT_SSH} -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o PreferredAuthentications=publickey"
+    local SCP_OPTS="-P ${PORT_SSH} -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o PreferredAuthentications=publickey"
     if [ -f "$SSH_KEY" ]; then
         SSH_OPTS="$SSH_OPTS -i $SSH_KEY"
         SCP_OPTS="$SCP_OPTS -i $SSH_KEY"
@@ -337,13 +337,14 @@ deploy_homelab() {
 
     # 5. Executar Build e Up no Docker do Mini PC
     echo -e "${C_YELLOW}[5/5] Reiniciando aplicação com a nova build no Mini PC...${C_RESET}"
-    ssh -t $SSH_OPTS "${USER}@${HOST}" "cd ${DEST_DIR} && (docker compose up -d --build app || sudo docker compose up -d --build app)"
+    ssh $SSH_OPTS "${USER}@${HOST}" "cd ${DEST_DIR} && docker compose up -d --build app"
     
     if [ $? -eq 0 ]; then
         echo ""
         echo -e "${C_GREEN}${C_BOLD}🎉 DEPLOY CONCLUÍDO COM SUCESSO NO HOMELAB!${C_RESET}"
-        echo -e "Acesse pelo Dockge: ${C_CYAN}http://${HOST}:5001${C_RESET}"
-        echo -e "Acesse a aplicação: ${C_CYAN}http://${HOST}:${SERVER_APP_PORT}${C_RESET}"
+        echo -e "Acesse pelo Domínio Local: ${C_CYAN}https://diarios.pk.local/${C_RESET}"
+        echo -e "Acesse diretamente por IP: ${C_CYAN}http://${HOST}:${SERVER_APP_PORT}${C_RESET}"
+        echo -e "Painel Dockge:             ${C_CYAN}http://${HOST}:5001${C_RESET}"
     else
         echo -e "${C_RED}❌ Ocorreu um erro ao iniciar a stack no servidor remoto.${C_RESET}"
     fi

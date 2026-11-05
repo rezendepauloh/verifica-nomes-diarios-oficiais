@@ -73,10 +73,15 @@ def render_dashboard_tab(occurrences, items_per_page: int = 20):
     if not filtered_df.empty:
         filtered_df["Link"] = filtered_df.apply(format_highlight_link, axis=1)
 
-    # Criação das abas para visualização compacta e dinâmica
-    tab_tabela, tab_grafico = st.tabs(["📋 Lista de Ocorrências", "📊 Gráfico por Fonte"])
+    # Criação das sub-abas estilizadas para visualização compacta e dinâmica
+    from src.components.subtabs import render_subtabs
+    DASHBOARD_SUBTABS = {
+        "lista": "📋 Lista de Ocorrências",
+        "grafico": "📊 Gráfico por Fonte"
+    }
+    active_dash_subtab = render_subtabs(DASHBOARD_SUBTABS, default_slug="lista", key="dashboard_subtabs", param_name="subtab")
 
-    with tab_tabela:
+    if active_dash_subtab == "lista":
         col_act, col_exp = st.columns([2, 1])
         with col_act:
             pendentes_filtrados = filtered_df[filtered_df["Status"] == "Pendente"] if not filtered_df.empty else pd.DataFrame()
@@ -152,7 +157,7 @@ def render_dashboard_tab(occurrences, items_per_page: int = 20):
         else:
             st.info("Nenhuma ocorrência corresponde aos filtros aplicados.")
 
-    with tab_grafico:
+    elif active_dash_subtab == "grafico":
         st.markdown("### 📊 Ocorrências por Fonte e Status")
         if not filtered_df.empty:
             df_chart = filtered_df.groupby(["Fonte", "Status"]).size().reset_index(name="Quantidade")

@@ -1,0 +1,18 @@
+[server]
+address = "0.0.0.0"
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+fileWatcherType = "poll"
+
+[theme]
+base = "dark"
+primaryColor = "#2563eb"
+backgroundColor = "#0f1117"
+secondaryBackgroundColor = "#1a1d24"
+textColor = "#f3f4f6"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
+

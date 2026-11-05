@@ -23,10 +23,48 @@ ROOT_DIR = Path(__file__).parent.parent
 LOGS_DIR = ROOT_DIR / "logs"
 ASSETS_DIR = ROOT_DIR / "assets"
 DATA_DIR = ROOT_DIR / "data"
+UPLOADS_DIR = ROOT_DIR / "uploads"
+EDITAIS_DIR = UPLOADS_DIR / "editais"
 DB_PATH = DATA_DIR / "results.db"
 
 PORT = os.getenv("PORT", "")
 TZ_NAME = os.getenv("TZ", "America/Campo_Grande").strip()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+
+def get_concurso_slug(titulo: str = "", ano: int = 2026, link_oficial: str = "") -> str:
+    """
+    Gera ou extrai o slug padronizado da pasta do concurso.
+    Prioridade:
+    1. Slug oficial extraído da URL (ex: cebraspe.org.br/.../cgu_26_affc -> 'cgu_26_affc')
+    2. Fallback: '{titulo_limpo}_{ano}' (ex: 'cgu_2026', 'mpe_ms_2026')
+    """
+    import re
+    if link_oficial:
+        # Se for Cebraspe
+        m_cebraspe = re.search(r'/concursos/([^/?#]+)', link_oficial, re.IGNORECASE)
+        if m_cebraspe:
+            return m_cebraspe.group(1).strip().lower()
+        # Se tiver outro padrão com slug no path
+        path_parts = [p for p in link_oficial.split('?')[0].split('/') if p]
+        if path_parts and len(path_parts[-1]) >= 4 and not path_parts[-1].endswith('.html'):
+            slug_cand = re.sub(r'[^\w\-_]', '_', path_parts[-1].lower())
+            if len(slug_cand) >= 3:
+                return slug_cand
+
+    # Fallback: nome_ano (com normalização de acentos para ASCII)
+    import unicodedata
+    raw_tit = unicodedata.normalize('NFKD', titulo or "concurso").encode('ASCII', 'ignore').decode('utf-8')
+    t_clean = re.sub(r'[^\w]', '_', raw_tit.strip().lower())
+    t_clean = re.sub(r'_+', '_', t_clean).strip('_')
+    return f"{t_clean}_{ano}"
+
+def get_edital_folder(titulo: str = "", ano: int = 2026, link_oficial: str = "") -> Path:
+    """Retorna o diretório específico do concurso dentro de uploads/editais/ criando-o se necessário."""
+    slug = get_concurso_slug(titulo=titulo, ano=ano, link_oficial=link_oficial)
+    folder = EDITAIS_DIR / slug
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
 
 def get_system_timezone():
     """Retorna o objeto ZoneInfo configurado para o fuso horário da aplicação."""

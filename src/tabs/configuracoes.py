@@ -258,17 +258,8 @@ def render_configuracoes_tab():
     # SUBTAB 1: NOMES MONITORADOS
     # -------------------------------------------------------------------------
     if selected_subtab == "nomes":
-        col_title, col_add = st.columns([3, 1])
-        with col_title:
-            st.markdown("### 👥 Gestão de Pessoas & Nomes Monitorados")
-            st.caption("Clique em qualquer linha da tabela para editar dados, telefone, alternar status ou excluir.")
-        with col_add:
-            st.write("")
-            if st.button("➕ Novo Nome", width="stretch", key="btn_open_modal_novo_nome"):
-                # Limpa a seleção anterior da tabela para evitar conflito de IDs
-                if "table_names_config" in st.session_state:
-                    st.session_state["table_names_config"] = {"selection": {"rows": [], "columns": []}}
-                st.session_state["modal_nome_to_open"] = "new"
+        st.markdown("### 👥 Gestão de Pessoas & Nomes Monitorados")
+        st.caption("Clique em qualquer linha da tabela para editar dados, telefone, alternar status ou excluir.")
 
         names_data = get_all_monitored_names()
         if names_data:
@@ -321,16 +312,8 @@ def render_configuracoes_tab():
     # SUBTAB 2: FONTES & DIÁRIOS OFICIAIS
     # -------------------------------------------------------------------------
     elif selected_subtab == "fontes":
-        col_title, col_add = st.columns([3, 1])
-        with col_title:
-            st.markdown("### 🌐 Portais, Diários Oficiais & Concursos")
-            st.caption("Clique em qualquer linha para editar ou alterar status. Acompanhe a integração dos robôs de coleta.")
-        with col_add:
-            st.write("")
-            if st.button("➕ Nova Fonte", width="stretch", key="btn_open_modal_nova_fonte"):
-                if "table_sources_config" in st.session_state:
-                    st.session_state["table_sources_config"] = {"selection": {"rows": [], "columns": []}}
-                st.session_state["modal_fonte_to_open"] = "new"
+        st.markdown("### 🌐 Portais, Diários Oficiais & Concursos")
+        st.caption("Clique em qualquer linha para editar ou alterar status. Acompanhe a integração dos robôs de coleta.")
 
         sources_data = get_all_monitored_sources()
         if sources_data:
@@ -560,18 +543,10 @@ def render_configuracoes_tab():
 
             df_hist = pd.DataFrame(hist_data)
 
-            # Controles de Itens por Página do Histórico
-            c_per_page, _ = st.columns([1.5, 3.5])
-            with c_per_page:
-                hist_items_per_page = render_items_per_page_selector(
-                    key_prefix="cron_hist",
-                    options=[10, 20, 50, 100, "Todos"],
-                    default_index=0,
-                    label="📄 Registros por página:",
-                    container=c_per_page
-                )
+            # Fatiamento paginado (controlado via seletor na sidebar)
+            from src.components.pagination import render_items_per_page_selector
+            hist_items_per_page = int(st.session_state.get("cron_hist_items_per_page", 10)) if str(st.session_state.get("cron_hist_items_per_page", 10)).lower() != "todos" else 999999
 
-            # Fatiamento paginado
             df_hist_page, current_p, total_p, total_it = paginate_items(
                 df_hist,
                 page_key="cron_history_grid",

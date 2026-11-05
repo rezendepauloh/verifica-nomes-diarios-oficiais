@@ -1,5 +1,10 @@
 from .header import render_header
-from .sidebar import render_sidebar
+from .sidebar import (
+    render_dashboard_sidebar,
+    render_editais_sidebar,
+    render_configuracoes_sidebar,
+    render_sidebar
+)
 from .metrics import render_metrics
 from .scan_control import render_scan_control
 from .details_modal import show_occurrence_details

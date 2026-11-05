@@ -29,8 +29,8 @@ if css_path.exists():
 # Importações dos módulos estruturados em src
 from src.database import init_db, get_occurrences
 from src.scheduler import start_scheduler_if_not_running
-from src.components import render_header, render_sidebar, render_metrics, render_scan_control, render_subtabs
-from src.tabs import render_dashboard_tab, render_configuracoes_tab
+from src.components import render_header, render_dashboard_sidebar, render_metrics, render_scan_control
+from src.tabs import render_dashboard_tab, render_configuracoes_tab, render_editais_tab
 
 # 1. Inicializa o banco de dados e seed
 init_db()
@@ -38,26 +38,13 @@ init_db()
 # 2. Inicia o agendador em background (Thread Singleton)
 start_scheduler_if_not_running()
 
-# 3. Renderiza o cabeçalho
-render_header()
-
-# 3. Renderiza a barra lateral e obtém os filtros
-active_names, selected_sources, items_per_page = render_sidebar()
-
-# 4. Navegação Principal por Abas
-MAIN_TABS = {
-    "dashboard": "📋 Painel & Ocorrências",
-    "configuracoes": "⚙️ Configurações & Fontes"
-}
-
-active_main_tab = render_subtabs(MAIN_TABS, default_slug="dashboard", key="top_navigation_tab", param_name="tab")
-st.markdown("<br>", unsafe_allow_html=True)
-
-# Se estiver no dashboard, remove o query_param subtab se existir, para manter a URL limpa
-if active_main_tab == "dashboard" and "subtab" in st.query_params:
-    del st.query_params["subtab"]
+# 3. Renderiza o cabeçalho moderno e obtém a página ativa (gerenciada exclusivamente pelo Menu Drawer)
+active_main_tab = render_header()
 
 if active_main_tab == "dashboard":
+    # 4. Na aba de Dashboard, renderiza os filtros específicos na barra lateral
+    from src.components.sidebar import render_dashboard_sidebar
+    active_names, selected_sources, items_per_page = render_dashboard_sidebar()
 
     # 5. Obtém ocorrências e renderiza os cards de métricas
     occurrences = get_occurrences()
@@ -69,7 +56,13 @@ if active_main_tab == "dashboard":
     # 7. Renderiza a tabela de ocorrências e gráfico com paginação
     render_dashboard_tab(occurrences, items_per_page=items_per_page)
 
+elif active_main_tab == "editais":
+    # Renderiza a central completa de editais (com sua própria sidebar)
+    render_editais_tab()
+
 elif active_main_tab == "configuracoes":
-    # Renderiza a página completa de configurações
+    # Na aba de Configurações, renderiza mensagem informativa na sidebar
+    from src.components.sidebar import render_configuracoes_sidebar
+    render_configuracoes_sidebar()
     render_configuracoes_tab()
 

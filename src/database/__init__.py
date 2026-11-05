@@ -24,6 +24,22 @@ from .db import (
     save_schedule_config,
     update_schedule_execution_times,
     record_scan_execution,
-    get_scan_history
+    get_scan_history,
+    save_edital,
+    get_all_editais,
+    get_edital_by_id,
+    update_edital,
+    delete_edital,
+    save_cronograma_items,
+    get_cronograma_by_edital,
+    update_cronograma_item_status,
+    clear_cronograma_by_edital,
+    save_verticalizado_items,
+    get_verticalizado_by_edital,
+    update_verticalizado_item,
+    clear_verticalizado_by_edital,
+    save_edital_documento,
+    get_documentos_by_edital,
+    mark_documento_as_processed
 )
 

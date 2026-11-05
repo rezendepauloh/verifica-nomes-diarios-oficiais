@@ -37,7 +37,7 @@ def render_metric_card(
     extra_content = extra_html.strip() if extra_html else ""
 
     html_content = textwrap.dedent(f"""<div class="metric-card" {card_style}>
-<div class="metric-title" {tit_style}>{title}</div>
+<div class="metric-label" {tit_style}>{title}</div>
 <div class="metric-value" {val_style}>{value}{subtitle_html}</div>
 {extra_content}
 </div>""").strip()

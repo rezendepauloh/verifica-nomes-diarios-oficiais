@@ -84,6 +84,82 @@ def init_db():
                 details TEXT DEFAULT ''
             )
         """)
+
+        # Tabelas para o módulo de Editais e Concursos
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS editais (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                titulo TEXT NOT NULL,
+                cargo TEXT DEFAULT '',
+                banca TEXT DEFAULT '',
+                ano INTEGER DEFAULT 2026,
+                interessado TEXT DEFAULT 'Ambos',
+                status TEXT DEFAULT 'Em Andamento',
+                arquivo_nome TEXT NOT NULL,
+                arquivo_path TEXT NOT NULL,
+                link_oficial TEXT DEFAULT '',
+                total_paginas INTEGER DEFAULT 0,
+                observacoes TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS edital_cronograma (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                edital_id INTEGER NOT NULL,
+                evento TEXT NOT NULL,
+                data_inicio TEXT,
+                data_fim TEXT,
+                data_limite TEXT,
+                status TEXT DEFAULT 'Previsto',
+                observacao TEXT DEFAULT '',
+                ordem INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (edital_id) REFERENCES editais (id) ON DELETE CASCADE
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS edital_verticalizado (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                edital_id INTEGER NOT NULL,
+                disciplina TEXT NOT NULL,
+                topico TEXT NOT NULL,
+                subtopico TEXT DEFAULT '',
+                peso REAL DEFAULT 1.0,
+                questoes_previstas INTEGER DEFAULT 0,
+                teoria_concluida INTEGER DEFAULT 0,
+                resumo_concluido INTEGER DEFAULT 0,
+                questoes_concluidas INTEGER DEFAULT 0,
+                revisao_1 INTEGER DEFAULT 0,
+                revisao_2 INTEGER DEFAULT 0,
+                revisao_3 INTEGER DEFAULT 0,
+                observacao TEXT DEFAULT '',
+                ordem INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (edital_id) REFERENCES editais (id) ON DELETE CASCADE
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS edital_documentos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                edital_id INTEGER NOT NULL,
+                titulo TEXT NOT NULL,
+                tipo TEXT DEFAULT 'Retificação',
+                arquivo_nome TEXT NOT NULL,
+                arquivo_path TEXT NOT NULL,
+                data_publicacao TEXT DEFAULT '',
+                url_origem TEXT DEFAULT '',
+                processado INTEGER DEFAULT 0,
+                resumo TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (edital_id) REFERENCES editais (id) ON DELETE CASCADE
+            )
+        """)
         
         # Migração defensiva: garante que a coluna phone e callmebot_apikey existam
         try:
@@ -621,5 +697,364 @@ def get_scan_history(limit: int = 200) -> list:
     finally:
         if 'conn' in locals():
             conn.close()
+
+
+# ==============================================================================
+# CRUD & MÉTODOS DO MÓDULO DE EDITAIS E CONCURSOS
+# ==============================================================================
+
+def save_edital(titulo: str, cargo: str, banca: str, ano: int, interessado: str,
+                arquivo_nome: str, arquivo_path: str, link_oficial: str = "",
+                total_paginas: int = 0, observacoes: str = "", status: str = "Em Andamento") -> int:
+    """Salva um novo edital no banco de dados e retorna o id gerado."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO editais (
+                titulo, cargo, banca, ano, interessado, status,
+                arquivo_nome, arquivo_path, link_oficial, total_paginas, observacoes
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (titulo, cargo, banca, ano, interessado, status,
+              arquivo_nome, arquivo_path, link_oficial, total_paginas, observacoes))
+        edital_id = cursor.lastrowid
+        conn.commit()
+        logger.info(f"Edital '{titulo}' inserido com sucesso (ID {edital_id}).")
+        return edital_id
+    except Exception as e:
+        logger.error(f"Erro ao salvar edital '{titulo}': {e}")
+        raise
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def get_all_editais(interessado: str = "Todos", status: str = "Todos") -> list:
+    """Retorna a lista de editais cadastrados, aplicando filtros opcionais."""
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        query = "SELECT * FROM editais WHERE 1=1"
+        params = []
+        if interessado and interessado != "Todos":
+            query += " AND (interessado = ? OR interessado = 'Ambos')"
+            params.append(interessado)
+        if status and status != "Todos":
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY id DESC"
+        cursor.execute(query, params)
+        rows = [dict(row) for row in cursor.fetchall()]
+        return rows
+    except Exception as e:
+        logger.error(f"Erro ao buscar editais: {e}")
+        return []
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def get_edital_by_id(edital_id: int):
+    """Busca os dados de um edital específico pelo ID."""
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM editais WHERE id = ?", (edital_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"Erro ao buscar edital {edital_id}: {e}")
+        return None
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def update_edital(edital_id: int, titulo: str, cargo: str, banca: str, ano: int,
+                  interessado: str, status: str, link_oficial: str = "", observacoes: str = "") -> bool:
+    """Atualiza as informações cadastrais de um edital."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE editais
+            SET titulo = ?, cargo = ?, banca = ?, ano = ?, interessado = ?,
+                status = ?, link_oficial = ?, observacoes = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (titulo, cargo, banca, ano, interessado, status, link_oficial, observacoes, edital_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar edital {edital_id}: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def delete_edital(edital_id: int) -> bool:
+    """Exclui o edital e todos os dados associados (cronograma e verticalizado)."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM edital_cronograma WHERE edital_id = ?", (edital_id,))
+        cursor.execute("DELETE FROM edital_verticalizado WHERE edital_id = ?", (edital_id,))
+        cursor.execute("DELETE FROM editais WHERE id = ?", (edital_id,))
+        conn.commit()
+        logger.info(f"Edital {edital_id} e seus dados excluídos com sucesso.")
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao excluir edital {edital_id}: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+# --- Cronograma ---
+
+def save_cronograma_items(edital_id: int, items: list) -> bool:
+    """
+    Insere uma lista de itens de cronograma para o edital.
+    Cada item é um dict com: evento, data_inicio, data_fim, data_limite, observacao, status.
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        for idx, item in enumerate(items):
+            cursor.execute("""
+                INSERT INTO edital_cronograma (
+                    edital_id, evento, data_inicio, data_fim, data_limite, status, observacao, ordem
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                edital_id,
+                item.get("evento", ""),
+                item.get("data_inicio", ""),
+                item.get("data_fim", ""),
+                item.get("data_limite", ""),
+                item.get("status", "Previsto"),
+                item.get("observacao", ""),
+                item.get("ordem", idx)
+            ))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar cronograma do edital {edital_id}: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def get_cronograma_by_edital(edital_id: int) -> list:
+    """Retorna todos os eventos do cronograma de um edital ordenados."""
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM edital_cronograma
+            WHERE edital_id = ?
+            ORDER BY ordem ASC, id ASC
+        """, (edital_id,))
+        return [dict(r) for r in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Erro ao buscar cronograma do edital {edital_id}: {e}")
+        return []
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def update_cronograma_item_status(item_id: int, status: str) -> bool:
+    """Atualiza o status de um item de cronograma (ex: 'Concluído', 'Pendente', 'Cancelado')."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE edital_cronograma SET status = ? WHERE id = ?", (status, item_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar status do cronograma {item_id}: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def clear_cronograma_by_edital(edital_id: int) -> bool:
+    """Limpa todos os eventos de cronograma do edital para reextração."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM edital_cronograma WHERE edital_id = ?", (edital_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao limpar cronograma do edital {edital_id}: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+# --- Edital Verticalizado ---
+
+def save_verticalizado_items(edital_id: int, items: list) -> bool:
+    """
+    Insere uma lista de itens do edital verticalizado.
+    Cada item é um dict: disciplina, topico, subtopico, peso, questoes_previstas, observacao, ordem.
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        for idx, item in enumerate(items):
+            cursor.execute("""
+                INSERT INTO edital_verticalizado (
+                    edital_id, disciplina, topico, subtopico, peso, questoes_previstas, observacao, ordem
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                edital_id,
+                item.get("disciplina", "Geral"),
+                item.get("topico", ""),
+                item.get("subtopico", ""),
+                item.get("peso", 1.0),
+                item.get("questoes_previstas", 0),
+                item.get("observacao", ""),
+                item.get("ordem", idx)
+            ))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao salvar itens verticalizados do edital {edital_id}: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def get_verticalizado_by_edital(edital_id: int) -> list:
+    """Retorna todos os tópicos verticalizados de um edital."""
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM edital_verticalizado
+            WHERE edital_id = ?
+            ORDER BY disciplina ASC, ordem ASC, id ASC
+        """, (edital_id,))
+        return [dict(r) for r in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Erro ao obter edital verticalizado {edital_id}: {e}")
+        return []
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def update_verticalizado_item(item_id: int, field: str, value: int) -> bool:
+    """Atualiza o estado de estudo (ex: teoria_concluida, resumo_concluido, etc.) de um tópico."""
+    allowed_fields = {
+        "teoria_concluida", "resumo_concluido", "questoes_concluidas",
+        "revisao_1", "revisao_2", "revisao_3"
+    }
+    if field not in allowed_fields:
+        return False
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            UPDATE edital_verticalizado
+            SET {field} = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (1 if value else 0, item_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar verticalizado {item_id} [{field}={value}]: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def clear_verticalizado_by_edital(edital_id: int) -> bool:
+    """Limpa os tópicos verticalizados de um edital para reprocessamento."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM edital_verticalizado WHERE edital_id = ?", (edital_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao limpar edital verticalizado {edital_id}: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+
+# ----------------------------------------------------------------------
+# DOCUMENTOS / RETIFICAÇÕES DE EDITAIS
+# ----------------------------------------------------------------------
+
+def save_edital_documento(edital_id: int, titulo: str, tipo: str, arquivo_nome: str,
+                          arquivo_path: str, data_publicacao: str = "", url_origem: str = "",
+                          processado: int = 0, resumo: str = "") -> int:
+    """Salva ou registra um documento anexo ou edital de retificação."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO edital_documentos (
+                edital_id, titulo, tipo, arquivo_nome, arquivo_path,
+                data_publicacao, url_origem, processado, resumo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (edital_id, titulo, tipo, arquivo_nome, arquivo_path,
+              data_publicacao, url_origem, processado, resumo))
+        doc_id = cursor.lastrowid
+        conn.commit()
+        return doc_id
+    except Exception as e:
+        logger.error(f"Erro ao salvar edital_documento para edital {edital_id}: {e}")
+        return 0
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def get_documentos_by_edital(edital_id: int) -> list:
+    """Retorna os documentos e retificações vinculados a um edital."""
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM edital_documentos
+            WHERE edital_id = ?
+            ORDER BY id DESC
+        """, (edital_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        logger.error(f"Erro ao buscar documentos do edital {edital_id}: {e}")
+        return []
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def mark_documento_as_processed(doc_id: int, resumo: str = "") -> bool:
+    """Marca documento como processado com sucesso."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE edital_documentos
+            SET processado = 1, resumo = ?
+            WHERE id = ?
+        """, (resumo, doc_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao marcar documento {doc_id} como processado: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+
 
 
