@@ -35,3 +35,7 @@ temp/
 # Certificados
 certs/*.crt
 *.crt
+
+# Static PDF.js (instalado automaticamente via Dockerfile / setup_pdfjs.py)
+static/pdfjs/
+assets/pdfjs/

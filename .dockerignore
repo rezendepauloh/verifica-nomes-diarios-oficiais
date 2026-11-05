@@ -11,3 +11,5 @@ data/
 uploads/
 temp/
 .pytest_cache/
+static/pdfjs/
+assets/pdfjs/

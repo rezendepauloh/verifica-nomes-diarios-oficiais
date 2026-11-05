@@ -52,117 +52,161 @@ from src.components.sidebar import render_editais_sidebar
 
 
 def render_pdf_viewer(pdf_path: str):
-    """Renderiza um leitor de PDF embutido na página via base64 iframe com suporte a maximização na janela."""
+    """Renderiza a suíte completa oficial do Mozilla PDF.js (viewer.html) com:
+    - Rolagem contínua fluida (folha por folha sem interrupção);
+    - Painel lateral expansível com miniaturas de páginas e marcadores/índice (outlines);
+    - Ferramentas completas de edição/anotação: Destacar texto (Highlighter), Desenho livre (Ink),
+      Texto livre (FreeText), Carimbos e Assinatura;
+    - Busca de texto com destaque de todas as ocorrências;
+    - Zoom dinâmico, rotação e modo apresentação;
+    - Botão 'Maximizar Janela' em 100vw/100vh com restauração via botão ou ESC.
+    """
     p = resolve_pdf_path(pdf_path)
     if not p or not p.exists():
         st.warning(f"Arquivo PDF não encontrado: {pdf_path}")
         return
 
     with open(p, "rb") as f:
-        base64_pdf = base64.b64encode(f.read()).decode("utf-8")
+        pdf_bytes = f.read()
+        base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
 
     pdf_viewer_html = f"""
     <!DOCTYPE html>
-    <html>
+    <html lang="pt-BR">
     <head>
       <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Visualizador Oficial PDF.js</title>
       <style>
-        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{
-          background: transparent;
-          font-family: sans-serif;
+        * {{
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
         }}
-        .viewer-container {{
+        html, body {{
+          width: 100%;
+          height: 100%;
+          background: #0e1117;
+          overflow: hidden;
+        }}
+        .viewer-box {{
           position: relative;
           width: 100%;
-          height: 850px;
+          height: 870px;
           border-radius: 8px;
           border: 1px solid rgba(255, 255, 255, 0.12);
           overflow: hidden;
           background: #11141b;
-          transition: all 0.3s ease;
+          transition: all 0.2s ease;
         }}
-        .viewer-container.window-fullscreen {{
+        .viewer-box.window-fullscreen {{
           position: fixed !important;
           top: 0 !important;
           left: 0 !important;
           width: 100vw !important;
           height: 100vh !important;
-          z-index: 99999999 !important;
+          z-index: 999999999 !important;
           border-radius: 0 !important;
           border: none !important;
         }}
-        iframe {{
+        iframe.pdf-full-frame {{
           width: 100%;
           height: 100%;
           border: none;
+          display: block;
         }}
         .btn-fullscreen-toggle {{
           position: absolute;
-          top: 50px;
-          right: 14px;
+          top: 0px;
+          right: 210px;
           z-index: 10000;
           background: rgba(30, 41, 59, 0.92);
           color: #f8fafc;
           border: 1px solid rgba(59, 130, 246, 0.5);
-          padding: 8px 14px;
-          border-radius: 6px;
-          font-size: 13px;
+          padding: 5px 12px;
+          border-radius: 5px;
+          font-size: 12px;
           font-weight: 500;
           cursor: pointer;
           backdrop-filter: blur(8px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 6px;
-          transition: background 0.2s, border-color 0.2s, transform 0.1s;
+          transition: background 0.15s, border-color 0.15s, transform 0.05s;
         }}
         .btn-fullscreen-toggle:hover {{
           background: #2563eb;
           border-color: #60a5fa;
-          transform: translateY(-1px);
         }}
         .btn-fullscreen-toggle:active {{
-          transform: translateY(0);
+          transform: translateY(1px);
         }}
       </style>
     </head>
     <body>
-      <div id="pdf-box" class="viewer-container">
-        <button id="toggle-btn" class="btn-fullscreen-toggle" title="Expandir PDF em toda a janela do navegador">
-          <span id="btn-icon">⛶</span>
-          <span id="btn-text">Maximizar Janela</span>
+      <div id="pdf-wrapper" class="viewer-box">
+        <button id="toggle-fs-btn" class="btn-fullscreen-toggle" title="Expandir PDF em toda a janela do navegador (ESC para sair)">
+          <span id="btn-fs-icon">⛶</span>
+          <span id="btn-fs-text">Maximizar Janela</span>
         </button>
-        <iframe id="pdf-frame" src="data:application/pdf;base64,{base64_pdf}#toolbar=1" type="application/pdf"></iframe>
+        <iframe id="pdf-inner-frame" class="pdf-full-frame" src="./app/static/pdfjs/web/viewer.html"></iframe>
       </div>
 
       <script>
-        const btn = document.getElementById('toggle-btn');
-        const box = document.getElementById('pdf-box');
-        const icon = document.getElementById('btn-icon');
-        const txt = document.getElementById('btn-text');
+        const btnFs = document.getElementById('toggle-fs-btn');
+        const box = document.getElementById('pdf-wrapper');
+        const fsIcon = document.getElementById('btn-fs-icon');
+        const fsText = document.getElementById('btn-fs-text');
+        const iframe = document.getElementById('pdf-inner-frame');
+        const base64Data = "{base64_pdf}";
+        const fileName = "{p.name}";
 
         let isMaximized = false;
 
-        btn.addEventListener('click', () => {{
+        // Envia o PDF em base64 para o viewer.html assim que ele estiver pronto
+        function sendPdfToViewer() {{
+          if (iframe && iframe.contentWindow) {{
+            iframe.contentWindow.postMessage({{
+              type: 'LOAD_PDF_BASE64',
+              data: base64Data,
+              filename: fileName
+            }}, '*');
+          }}
+        }}
+
+        iframe.addEventListener('load', () => {{
+          // Envia imediatamente e tenta novamente após 200ms para garantir inicialização
+          sendPdfToViewer();
+          setTimeout(sendPdfToViewer, 200);
+          setTimeout(sendPdfToViewer, 600);
+        }});
+
+        window.addEventListener('message', (e) => {{
+          if (e.data && e.data.type === 'PDF_VIEWER_READY') {{
+            sendPdfToViewer();
+          }}
+        }});
+
+        // Controle de Maximizar Janela
+        btnFs.addEventListener('click', () => {{
           isMaximized = !isMaximized;
           if (isMaximized) {{
             box.classList.add('window-fullscreen');
-            icon.innerText = '🗗';
-            txt.innerText = 'Restaurar Janela';
-            // Se estiver dentro de um iframe do Streamlit, tenta expandir o iframe pai
+            fsIcon.innerText = '🗗';
+            fsText.innerText = 'Restaurar Janela';
             if (window.frameElement) {{
               window.frameElement.style.position = 'fixed';
               window.frameElement.style.top = '0';
               window.frameElement.style.left = '0';
               window.frameElement.style.width = '100vw';
               window.frameElement.style.height = '100vh';
-              window.frameElement.style.zIndex = '9999999';
+              window.frameElement.style.zIndex = '999999999';
             }}
           }} else {{
             box.classList.remove('window-fullscreen');
-            icon.innerText = '⛶';
-            txt.innerText = 'Maximizar Janela';
+            fsIcon.innerText = '⛶';
+            fsText.innerText = 'Maximizar Janela';
             if (window.frameElement) {{
               window.frameElement.style.position = '';
               window.frameElement.style.top = '';
@@ -177,7 +221,7 @@ def render_pdf_viewer(pdf_path: str):
         // Tecla ESC para restaurar
         document.addEventListener('keydown', (e) => {{
           if (e.key === 'Escape' && isMaximized) {{
-            btn.click();
+            btnFs.click();
           }}
         }});
       </script>
@@ -185,7 +229,7 @@ def render_pdf_viewer(pdf_path: str):
     </html>
     """
     import streamlit.components.v1 as components
-    components.html(pdf_viewer_html, height=870, scrolling=False)
+    components.html(pdf_viewer_html, height=890, scrolling=False)
 
 
 def render_editais_tab():
@@ -756,6 +800,16 @@ def render_editais_tab():
         st.write(f"##### 📖 Leitura do Documento: {pdf_title}")
         resolved_file = resolve_pdf_path(pdf_file)
         if resolved_file and resolved_file.exists():
+            col_down1, col_down2 = st.columns([4, 1])
+            with col_down2:
+                with open(resolved_file, "rb") as f_down:
+                    st.download_button(
+                        label="💾 Baixar PDF",
+                        data=f_down.read(),
+                        file_name=resolved_file.name,
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
             render_pdf_viewer(str(resolved_file))
         else:
             st.error(f"Arquivo PDF não encontrado no disco: {pdf_file}")

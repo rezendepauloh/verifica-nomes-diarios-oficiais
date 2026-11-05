@@ -26,6 +26,10 @@ RUN if [ -d /tmp/certs ] && [ -n "$(ls -A /tmp/certs 2>/dev/null)" ]; then \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Prepara e instala o Mozilla PDF.js viewer oficial diretamente na imagem
+COPY src/setup_pdfjs.py /tmp/setup_pdfjs.py
+RUN python3 /tmp/setup_pdfjs.py && rm -f /tmp/setup_pdfjs.py
+
 # Copia os arquivos do projeto
 COPY . .
 
