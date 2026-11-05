@@ -13,7 +13,7 @@ import zipfile
 
 PDFJS_VERSION = "4.5.136"
 PDFJS_URL = f"https://github.com/mozilla/pdf.js/releases/download/v{PDFJS_VERSION}/pdfjs-{PDFJS_VERSION}-dist.zip"
-TARGET_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "pdfjs")
+TARGET_DIR = os.environ.get("PDFJS_TARGET_DIR") or os.path.join(os.getcwd(), "static", "pdfjs")
 
 
 def setup_pdfjs():

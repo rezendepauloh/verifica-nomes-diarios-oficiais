@@ -126,6 +126,59 @@ def format_digest_message(items: list[dict]) -> str:
     msg_lines.append("📌 *Acesse o painel do sistema para visualizar e gerenciar a lista completa.*")
     return "\n".join(msg_lines)
 
+
+def format_cronograma_deadline_message(
+    edital_titulo: str,
+    evento: str,
+    prazo_str: str,
+    situacao: str,
+    interessado: str = "Ambos",
+    cargo: str = "",
+    detalhes: str = "",
+    local_url: str = "",
+    public_url: str = ""
+) -> str:
+    """
+    Gera o texto formatado para notificação de prazos e datas importantes do cronograma no WhatsApp.
+    """
+    header_icon = "🚨" if situacao.lower() in ("hoje", "em andamento") else "📅"
+    sub_title = "PRAZO HOJE!" if situacao.lower() == "hoje" else ("EM ANDAMENTO!" if situacao.lower() == "em andamento" else "LEMBRETE DE PRAZO")
+    
+    cargo_str = f" — {cargo.strip()}" if cargo and cargo.strip() else ""
+
+    lines = [
+        f"{header_icon} *ALERTA DE CONCURSO: {sub_title}* {header_icon}",
+        "",
+        f"🏛️ *Concurso:* {edital_titulo}{cargo_str}",
+        f"👤 *Candidato(a):* {interessado}",
+        "",
+        f"📌 *Etapa / Atividade:*",
+        f"*{evento}*",
+        "",
+        f"⏳ *Situação:* {situacao}",
+        f"📅 *Data / Período:* {prazo_str}",
+    ]
+
+    if detalhes and detalhes.strip():
+        # Limita tamanho para não sobrecarregar
+        clean_detalhes = detalhes.strip()
+        if len(clean_detalhes) > 200:
+            clean_detalhes = clean_detalhes[:197] + "..."
+        lines.append(f"📝 *Detalhes:* {clean_detalhes}")
+
+    # Links de Acesso
+    l_url = (local_url or os.getenv("APP_LOCAL_URL", "https://diarios.pk.local")).rstrip("/")
+    p_url = (public_url or os.getenv("APP_PUBLIC_URL", "https://diarios-paulo.shares.zrok.io")).rstrip("/")
+
+    lines.append("")
+    lines.append("🔗 *Acessar Central de Editais:*")
+    if l_url:
+        lines.append(f"• Local (Wi-Fi): {l_url}/?tab=editais")
+    if p_url:
+        lines.append(f"• Remoto (zrok): {p_url}/?tab=editais")
+
+    return "\n".join(lines)
+
 def send_whatsapp_message(phone: str, message: str, apikey: str = None) -> bool:
     """
     Envia uma mensagem de WhatsApp via CallMeBot.

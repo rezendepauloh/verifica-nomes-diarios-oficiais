@@ -160,6 +160,22 @@ def init_db():
                 FOREIGN KEY (edital_id) REFERENCES editais (id) ON DELETE CASCADE
             )
         """)
+
+        # Tabela de histórico de notificações do cronograma de editais para evitar duplicidades
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cronograma_alert_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cronograma_id INTEGER NOT NULL,
+                edital_id INTEGER NOT NULL,
+                tipo_alerta TEXT NOT NULL, -- 'hoje', 'amanha', 'manual'
+                data_alvo TEXT NOT NULL,   -- 'YYYY-MM-DD'
+                phone TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (cronograma_id) REFERENCES edital_cronograma (id) ON DELETE CASCADE,
+                FOREIGN KEY (edital_id) REFERENCES editais (id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_crono_alert ON cronograma_alert_history (cronograma_id, tipo_alerta, data_alvo, phone)")
         
         # Migração defensiva: garante que a coluna phone e callmebot_apikey existam
         try:
@@ -858,6 +874,75 @@ def get_cronograma_by_edital(edital_id: int) -> list:
         return [dict(r) for r in cursor.fetchall()]
     except Exception as e:
         logger.error(f"Erro ao buscar cronograma do edital {edital_id}: {e}")
+        return []
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def has_cronograma_alert_been_sent(cronograma_id: int, tipo_alerta: str, data_alvo: str, phone: str) -> bool:
+    """Verifica se um determinado alerta de cronograma já foi enviado para o telefone na data alvo."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) FROM cronograma_alert_history
+            WHERE cronograma_id = ? AND tipo_alerta = ? AND data_alvo = ? AND phone = ?
+        """, (cronograma_id, tipo_alerta, data_alvo, phone))
+        return cursor.fetchone()[0] > 0
+    except Exception as e:
+        logger.error(f"Erro ao verificar envio de alerta de cronograma: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def record_cronograma_alert_sent(cronograma_id: int, edital_id: int, tipo_alerta: str, data_alvo: str, phone: str) -> bool:
+    """Registra o envio de um alerta de cronograma no banco."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO cronograma_alert_history (cronograma_id, edital_id, tipo_alerta, data_alvo, phone)
+            VALUES (?, ?, ?, ?, ?)
+        """, (cronograma_id, edital_id, tipo_alerta, data_alvo, phone))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao registrar histórico de alerta de cronograma: {e}")
+        return False
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def get_all_active_cronogramas() -> list:
+    """Retorna todos os eventos de cronograma de editais ativos com os dados do edital associado."""
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                c.id as cronograma_id,
+                c.evento,
+                c.data_inicio,
+                c.data_fim,
+                c.data_limite,
+                c.status,
+                c.observacao,
+                e.id as edital_id,
+                e.titulo as edital_titulo,
+                e.cargo as edital_cargo,
+                e.banca as edital_banca,
+                e.ano as edital_ano,
+                e.interessado as edital_interessado,
+                e.link_oficial
+            FROM edital_cronograma c
+            JOIN editais e ON c.edital_id = e.id
+            ORDER BY c.data_inicio ASC, c.ordem ASC
+        """)
+        return [dict(r) for r in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Erro ao buscar cronogramas ativos: {e}")
         return []
     finally:
         if 'conn' in locals():

@@ -413,6 +413,7 @@ def render_editais_tab():
     # --------------------------------------------------------------------------
     if active_edital_subtab == "crono":
         st.write("##### 🗓️ Cronograma de Atividades e Prazos do Concurso")
+
         cronograma = get_cronograma_by_edital(selected_edital_id)
 
         from src.editais.calendar_utils import (
@@ -800,16 +801,6 @@ def render_editais_tab():
         st.write(f"##### 📖 Leitura do Documento: {pdf_title}")
         resolved_file = resolve_pdf_path(pdf_file)
         if resolved_file and resolved_file.exists():
-            col_down1, col_down2 = st.columns([4, 1])
-            with col_down2:
-                with open(resolved_file, "rb") as f_down:
-                    st.download_button(
-                        label="💾 Baixar PDF",
-                        data=f_down.read(),
-                        file_name=resolved_file.name,
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
             render_pdf_viewer(str(resolved_file))
         else:
             st.error(f"Arquivo PDF não encontrado no disco: {pdf_file}")

@@ -74,6 +74,7 @@ class BackgroundScanScheduler(threading.Thread):
         super().__init__(name="BackgroundScanSchedulerThread", daemon=True)
         self._running = True
         self._last_triggered_minute = ""
+        self._last_cronograma_check_day = None
 
     def run(self):
         logger.info("⏰ [Scheduler] Motor de agendamento automático iniciado em background.")
@@ -115,6 +116,20 @@ class BackgroundScanScheduler(threading.Thread):
         if current_weekday in days_of_week and current_time_str in times:
             self._last_triggered_minute = current_minute_key
             self._trigger_scan(now, next_dt)
+
+        # Verificação diária de prazos e etapas dos editais às 07:30 (ou na primeira execução da manhã)
+        if current_time_str == "07:30" and self._last_cronograma_check_day != now.date():
+            self._last_cronograma_check_day = now.date()
+            self._trigger_cronograma_check()
+
+    def _trigger_cronograma_check(self):
+        """Dispara a checagem de prazos de editais e envio de WhatsApp em thread separada."""
+        try:
+            from src.editais.notifications import check_and_notify_cronograma_deadlines
+            threading.Thread(target=check_and_notify_cronograma_deadlines, daemon=True).start()
+            logger.info("📅 [Scheduler] Thread de notificação de prazos de editais iniciada.")
+        except Exception as e:
+            logger.error(f"📅 [Scheduler] Falha ao disparar checagem de prazos de editais: {e}")
 
     def _trigger_scan(self, triggered_at: datetime, next_dt: datetime):
         if check_scan_running():

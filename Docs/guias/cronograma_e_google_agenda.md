@@ -43,3 +43,20 @@ Na barra lateral da subtab `crono`:
 - Um arquivo padronizado RFC-5545 é baixado com todos os eventos do concurso.
 - No Google Agenda, vá em **Configurações > Importar e Exportar**, selecione a sua agenda "Concursos" e faça o upload do arquivo. Todos os prazos aparecerão instantaneamente organizados.
 
+---
+
+## 4. Alertas Automáticos via WhatsApp (CallMeBot)
+
+O sistema possui um robô inteligente que monitora os prazos do cronograma diariamente às **07:30 da manhã** (e sob demanda via botão **`📲 Testar Alertas no WhatsApp`**):
+- **Gatilhos de Notificação**:
+  - `🚨 Vence Hoje!`: Etapas pontuais que vencem no dia atual.
+  - `🚨 Último dia Hoje!` / `🟢 Começa Hoje!`: Períodos que encerram ou iniciam no próprio dia.
+  - `⏳ Encerra Amanhã` / `⏳ Prazo Amanhã`: Aviso prévio de 24h para você não perder prazos críticos (pagamento de GRU, encerramento de inscrições, recursos, etc.).
+- **Segmentação por Interessado**:
+  - Respeita o campo de interessado do edital (*Paulo*, *Kamila* ou *Ambos*).
+- **Links Diretos na Mensagem**:
+  - Envia tanto o link de rede local (`https://diarios.pk.local/`) quanto o link externo seguro via zrok (`https://diarios-paulo.shares.zrok.io/`) para consulta rápida.
+- **Prevenção de Duplicidade (Idempotência)**:
+  - Registra o envio na tabela `cronograma_alert_history` do SQLite, garantindo que você nunca receba o mesmo alerta duas vezes no mesmo dia.
+
+

@@ -189,6 +189,23 @@ def render_editais_sidebar(disciplinas_disponiveis: Optional[List[str]] = None) 
                     key="sb_download_ics"
                 )
 
+            # Botão Testar Alertas no WhatsApp
+            if st.sidebar.button(
+                "📲 Testar Alertas no WhatsApp",
+                key="sb_btn_test_crono_whatsapp",
+                use_container_width=True,
+                help="Verifica os prazos de hoje/amanhã e dispara notificação via CallMeBot para os candidatos deste edital."
+            ):
+                from src.editais.notifications import check_and_notify_cronograma_deadlines
+                with st.spinner("Analisando datas e enviando lembretes no WhatsApp..."):
+                    res = check_and_notify_cronograma_deadlines(force_all=True, edital_id_filter=selected_edital_id)
+                    if res["alerts_sent"] > 0:
+                        st.toast(f"✅ {res['alerts_sent']} alerta(s) de cronograma disparado(s) via CallMeBot!", icon="📲")
+                    elif res.get("status") == "no_recipients":
+                        st.sidebar.warning("Nenhum destinatário de WhatsApp com telefone e API Key cadastrado no menu Configurações.")
+                    else:
+                        st.sidebar.info("Nenhuma data pendente de notificação hoje.")
+
     # Controles contextuais da subtab de leitura de PDF ('leitor')
     elif current_subtab == "leitor" and selected_edital_id:
         from src.database import get_edital_by_id, get_documentos_by_edital
@@ -222,8 +239,23 @@ def render_editais_sidebar(disciplinas_disponiveis: Optional[List[str]] = None) 
                 key="sb_selected_pdf_index"
             )
             # Salva o arquivo selecionado no session_state para consumo na tab
-            st.session_state["leitor_selected_pdf_path"] = docs_disponiveis[sel_idx]["path"]
+            selected_pdf_path = docs_disponiveis[sel_idx]["path"]
+            st.session_state["leitor_selected_pdf_path"] = selected_pdf_path
             st.session_state["leitor_selected_pdf_title"] = docs_disponiveis[sel_idx]["label"]
+
+            # Botão Baixar PDF selecionado
+            from src.editais.pdf_parser import resolve_pdf_path
+            resolved_pdf = resolve_pdf_path(selected_pdf_path)
+            if resolved_pdf and resolved_pdf.exists():
+                with open(resolved_pdf, "rb") as f_down:
+                    st.sidebar.download_button(
+                        label="💾 Baixar PDF",
+                        data=f_down.read(),
+                        file_name=resolved_pdf.name,
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="sb_download_pdf_leitor"
+                    )
 
     return {
         "interessado": filtro_interessado,

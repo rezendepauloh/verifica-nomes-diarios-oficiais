@@ -10,9 +10,11 @@ from src.notifications.callmebot import (
     normalize_phone,
     format_occurrence_message,
     format_digest_message,
+    format_cronograma_deadline_message,
     send_whatsapp_message,
     test_callmebot_connection as api_test_callmebot
 )
+from src.editais.notifications import check_and_notify_cronograma_deadlines
 
 class TestNormalizePhone(unittest.TestCase):
     """Valida as regras de normalização de telefone brasileiro e internacional."""
@@ -80,6 +82,75 @@ class TestFormatMessage(unittest.TestCase):
         self.assertIn("[MPMS]", msg)
         self.assertIn("[DO-MS]", msg)
         self.assertIn("[DOU]", msg)
+
+    def test_format_cronograma_deadline_message(self):
+        msg = format_cronograma_deadline_message(
+            edital_titulo="Concurso UFMS 2026",
+            evento="Período de Inscrições",
+            prazo_str="05/11/2026 a 20/11/2026",
+            situacao="HOJE",
+            interessado="Paulo",
+            cargo="Assistente em Administração",
+            detalhes="Taxa de R$ 100,00",
+            local_url="https://diarios.pk.local",
+            public_url="https://diarios-paulo.shares.zrok.io"
+        )
+        self.assertIn("🚨 *ALERTA DE CONCURSO: PRAZO HOJE!* 🚨", msg)
+        self.assertIn("Paulo", msg)
+        self.assertIn("Concurso UFMS 2026", msg)
+        self.assertIn("Assistente em Administração", msg)
+        self.assertIn("Período de Inscrições", msg)
+        self.assertIn("05/11/2026 a 20/11/2026", msg)
+        self.assertIn("https://diarios.pk.local", msg)
+        self.assertIn("https://diarios-paulo.shares.zrok.io", msg)
+
+
+class TestCronogramaNotifications(unittest.TestCase):
+    """Testa a lógica de verificação e disparo das notificações de cronograma."""
+
+    @patch("src.editais.notifications.send_whatsapp_message")
+    @patch("src.editais.notifications.record_cronograma_alert_sent")
+    @patch("src.editais.notifications.has_cronograma_alert_been_sent")
+    @patch("src.editais.notifications.get_whatsapp_notification_recipients")
+    @patch("src.editais.notifications.get_all_active_cronogramas")
+    def test_check_and_notify_cronograma_deadlines(
+        self,
+        mock_get_cronos,
+        mock_get_recipients,
+        mock_has_sent,
+        mock_record_sent,
+        mock_send_msg
+    ):
+        mock_get_recipients.return_value = [
+            {"name": "Paulo Henrique", "phone": "5567992471379", "callmebot_apikey": "123456"}
+        ]
+        mock_get_cronos.return_value = [
+            {
+                "cronograma_id": 1,
+                "evento": "Período de Inscrições",
+                "data_inicio": "2026-11-05",
+                "data_fim": "2026-11-05",
+                "data_limite": "2026-11-05",
+                "status": "Previsto",
+                "observacao": "",
+                "edital_id": 10,
+                "edital_titulo": "Concurso TJMS",
+                "edital_cargo": "Analista Judiciário",
+                "edital_banca": "FGV",
+                "edital_ano": 2026,
+                "edital_interessado": "Paulo",
+                "link_oficial": "https://tjms.jus.br"
+            }
+        ]
+        mock_has_sent.return_value = False
+        mock_send_msg.return_value = True
+
+        res = check_and_notify_cronograma_deadlines(force_all=True)
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["alerts_sent"], 1)
+        mock_send_msg.assert_called_once()
+        mock_record_sent.assert_called_once()
+
 
 
 class TestSendWhatsAppMessage(unittest.TestCase):

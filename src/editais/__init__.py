@@ -13,6 +13,7 @@ from .extractor_ai import (
     extract_cronograma_with_ai,
     extract_verticalizado_with_ai
 )
+from .notifications import check_and_notify_cronograma_deadlines
 
 __all__ = [
     "inspect_pdf",
@@ -22,5 +23,6 @@ __all__ = [
     "discover_cargos_in_pdf",
     "is_gemini_available",
     "extract_cronograma_with_ai",
-    "extract_verticalizado_with_ai"
+    "extract_verticalizado_with_ai",
+    "check_and_notify_cronograma_deadlines"
 ]
