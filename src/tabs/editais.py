@@ -254,21 +254,27 @@ def render_editais_tab():
         with st.expander("📝 Formulário de Cadastro de Novo Edital", expanded=True):
             col_f1, col_f2 = st.columns(2)
             with col_f1:
-                novo_titulo = st.text_input("Título / Órgão do Concurso *", placeholder="Ex: TJMS, MSGÁS, IFMS, TRF3")
-                novo_cargo = st.text_input("Cargo Desejado", placeholder="Ex: Analista de TI, Técnico Judiciário")
-                novo_banca = st.text_input("Banca Organizadora", placeholder="Ex: FGV, Cebraspe, FCC, Instituto Consulplan")
+                novo_titulo = st.text_input("Título / Órgão do Concurso *", placeholder="Ex: UFMS, TJMS, MSGÁS, IFMS, TRF3")
+                novo_cargo = st.text_input("Cargo Desejado", placeholder="Ex: Professor Visitante - INBIO, Analista de TI")
+                novo_banca = st.text_input("Banca Organizadora", placeholder="Ex: FAPEC, FGV, Cebraspe, FCC")
             with col_f2:
                 novo_ano = st.number_input("Ano", min_value=2020, max_value=2035, value=2026, step=1)
                 novo_interessado = st.selectbox("Interessado(a) *", ["Ambos", "Paulo", "Kamila"])
-                novo_link = st.text_input("Link Oficial da Página do Concurso", placeholder="https://...")
+                novo_link = st.text_input("Link Oficial da Página do Concurso / Editais", placeholder="https://... (onde saem as retificações e comunicados)")
+                novo_link_inscricao = st.text_input("Link Direto de Inscrição (Opcional)", placeholder="https://... (portal onde o candidato se inscreve)")
 
-            uploaded_file = st.file_uploader("Arquivo do Edital (.pdf) *", type=["pdf"])
+            uploaded_files = st.file_uploader(
+                "Arquivos do Edital (.pdf) — Você pode selecionar múltiplos arquivos (Geral + Específicos) *",
+                type=["pdf"],
+                accept_multiple_files=True
+            )
 
             cargos_detectados = []
-            if uploaded_file:
-                temp_preview_path = EDITAIS_DIR / f"temp_{uploaded_file.name.replace(' ', '_')}"
+            if uploaded_files:
+                first_file = uploaded_files[0]
+                temp_preview_path = EDITAIS_DIR / f"temp_{first_file.name.replace(' ', '_')}"
                 with open(temp_preview_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                    f.write(first_file.getbuffer())
                 try:
                     cargos_detectados = discover_cargos_in_pdf(str(temp_preview_path))
                 except Exception:
@@ -276,7 +282,7 @@ def render_editais_tab():
 
             if cargos_detectados:
                 cargo_opcao = st.selectbox(
-                    "Cargos detectados no edital (Selecione para focar no seu cargo):",
+                    "Cargos detectados no edital principal (Selecione para focar no seu cargo):",
                     options=["Geral / Todos os Cargos"] + cargos_detectados,
                     help="O edital verticalizado focará nos conhecimentos comuns + nos conhecimentos específicos do cargo escolhido."
                 )
@@ -286,14 +292,15 @@ def render_editais_tab():
             if st.button("💾 Salvar e Processar Edital", type="primary"):
                 if not novo_titulo:
                     st.error("Informe o Título/Órgão do concurso.")
-                elif not uploaded_file:
-                    st.error("Faça o upload do arquivo PDF do edital.")
+                elif not uploaded_files:
+                    st.error("Faça o upload de ao menos um arquivo PDF do edital.")
                 else:
                     concurso_folder = get_edital_folder(titulo=novo_titulo, ano=novo_ano, link_oficial=novo_link)
-                    safe_name = f"{int(datetime.now().timestamp())}_{uploaded_file.name.replace(' ', '_')}"
-                    dest_path = concurso_folder / safe_name
+                    primary_file = uploaded_files[0]
+                    safe_primary_name = f"{int(datetime.now().timestamp())}_{primary_file.name.replace(' ', '_')}"
+                    dest_path = concurso_folder / safe_primary_name
                     with open(dest_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
+                        f.write(primary_file.getbuffer())
 
                     info = inspect_pdf(str(dest_path))
 
@@ -303,11 +310,34 @@ def render_editais_tab():
                         banca=novo_banca,
                         ano=novo_ano,
                         interessado=novo_interessado,
-                        arquivo_nome=uploaded_file.name,
+                        arquivo_nome=primary_file.name,
                         arquivo_path=str(dest_path),
                         link_oficial=novo_link,
+                        link_inscricao=novo_link_inscricao,
                         total_paginas=info.get("total_pages", 0)
                     )
+
+                    # Salva arquivos adicionais anexados (ex: edital específico de área / anexo)
+                    outros_salvos = 0
+                    if len(uploaded_files) > 1:
+                        for idx_extra, extra_file in enumerate(uploaded_files[1:], 1):
+                            safe_extra_name = f"{int(datetime.now().timestamp())}_{idx_extra}_{extra_file.name.replace(' ', '_')}"
+                            dest_extra_path = concurso_folder / safe_extra_name
+                            with open(dest_extra_path, "wb") as f_ex:
+                                f_ex.write(extra_file.getbuffer())
+
+                            save_edital_documento(
+                                edital_id=edital_id,
+                                titulo=extra_file.name.replace(".pdf", "").replace(".PDF", ""),
+                                tipo="Edital Específico / Anexo",
+                                arquivo_nome=extra_file.name,
+                                arquivo_path=str(dest_extra_path),
+                                data_publicacao=datetime.now().strftime("%d/%m/%Y"),
+                                url_origem="",
+                                processado=1,
+                                resumo="Anexado durante o cadastro do concurso"
+                            )
+                            outros_salvos += 1
 
                     with st.spinner("Extraindo cronograma e conteúdo programático localmente..."):
                         crono_items = extract_cronograma_local(str(dest_path))
@@ -318,7 +348,8 @@ def render_editais_tab():
                         if vert_items:
                             save_verticalizado_items(edital_id, vert_items)
 
-                    st.success(f"Edital '{novo_titulo}' cadastrado com sucesso! ({len(crono_items)} datas no cronograma, {len(vert_items)} tópicos encontrados).")
+                    msg_extras = f" e {outros_salvos} anexo(s) vinculado(s)" if outros_salvos else ""
+                    st.success(f"Edital '{novo_titulo}' cadastrado com sucesso! ({len(crono_items)} datas no cronograma, {len(vert_items)} tópicos encontrados{msg_extras}).")
                     st.session_state.show_new_edital_form = False
                     st.rerun()
 
@@ -331,34 +362,104 @@ def render_editais_tab():
     if not edital_atual:
         return
 
-    # Link Oficial e Botão de Acesso Externo
+    # Formulário Modal/Expander de Edição do Concurso Selecionado
+    edit_key = f"show_edit_edital_{selected_edital_id}"
+    if st.session_state.get(edit_key, False):
+        with st.expander(f"✏️ Editar Informações do Concurso: {edital_atual['titulo']}", expanded=True):
+            col_ed1, col_ed2 = st.columns(2)
+            with col_ed1:
+                edit_titulo = st.text_input("Título / Órgão do Concurso *", value=edital_atual["titulo"], key=f"inp_edit_titulo_{selected_edital_id}")
+                edit_cargo = st.text_input("Cargo Desejado", value=edital_atual.get("cargo") or "", key=f"inp_edit_cargo_{selected_edital_id}")
+                edit_banca = st.text_input("Banca Organizadora", value=edital_atual.get("banca") or "", key=f"inp_edit_banca_{selected_edital_id}")
+                edit_status = st.selectbox(
+                    "Status do Concurso",
+                    ["Em Andamento", "Finalizado", "Cancelado"],
+                    index=["Em Andamento", "Finalizado", "Cancelado"].index(edital_atual.get("status") or "Em Andamento"),
+                    key=f"inp_edit_status_{selected_edital_id}"
+                )
+            with col_ed2:
+                edit_ano = st.number_input("Ano", min_value=2020, max_value=2035, value=int(edital_atual.get("ano") or 2026), step=1, key=f"inp_edit_ano_{selected_edital_id}")
+                edit_interessado = st.selectbox(
+                    "Interessado(a) *",
+                    ["Ambos", "Paulo", "Kamila"],
+                    index=["Ambos", "Paulo", "Kamila"].index(edital_atual.get("interessado") or "Ambos"),
+                    key=f"inp_edit_interessado_{selected_edital_id}"
+                )
+                edit_link_oficial = st.text_input("Link Oficial da Página do Concurso / Editais", value=edital_atual.get("link_oficial") or "", key=f"inp_edit_link_{selected_edital_id}")
+                edit_link_inscricao = st.text_input("Link Direto de Inscrição", value=edital_atual.get("link_inscricao") or "", key=f"inp_edit_link_inscricao_{selected_edital_id}")
+
+            edit_obs = st.text_area("Observações Adicionais", value=edital_atual.get("observacoes") or "", key=f"inp_edit_obs_{selected_edital_id}")
+
+            col_save, col_cancel = st.columns([1, 4])
+            with col_save:
+                if st.button("💾 Salvar Alterações", type="primary", key=f"btn_save_edital_{selected_edital_id}"):
+                    if not edit_titulo:
+                        st.error("O título/órgão não pode ficar em branco.")
+                    else:
+                        ok = update_edital(
+                            edital_id=selected_edital_id,
+                            titulo=edit_titulo,
+                            cargo=edit_cargo,
+                            banca=edit_banca,
+                            ano=edit_ano,
+                            interessado=edit_interessado,
+                            status=edit_status,
+                            link_oficial=edit_link_oficial,
+                            link_inscricao=edit_link_inscricao,
+                            observacoes=edit_obs
+                        )
+                        if ok:
+                            st.toast("✅ Dados do concurso atualizados com sucesso!", icon="💾")
+                            st.session_state[edit_key] = False
+                            st.rerun()
+                        else:
+                            st.error("Erro ao salvar alterações no banco de dados.")
+            with col_cancel:
+                if st.button("Cancelar", key=f"btn_cancel_edit_{selected_edital_id}"):
+                    st.session_state[edit_key] = False
+                    st.rerun()
+
+    # Links Oficiais e Botões de Acesso Externo
     link_oficial = (edital_atual.get("link_oficial") or "").strip()
-    link_badge_html = ""
-    if link_oficial:
-        link_badge_html = f"""
-        <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-            <a href="{link_oficial}" target="_blank" rel="noopener noreferrer" style="
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(59, 130, 246, 0.12));
-                border: 1px solid rgba(59, 130, 246, 0.4);
-                color: #60a5fa;
-                padding: 6px 14px;
-                border-radius: 6px;
-                text-decoration: none;
-                font-size: 13.5px;
-                font-weight: 500;
-                transition: all 0.2s ease;
-            " onmouseover="this.style.background='rgba(59, 130, 246, 0.25)'; this.style.borderColor='#3b82f6';"
-               onmouseout="this.style.background='rgba(37, 99, 235, 0.18)'; this.style.borderColor='rgba(59, 130, 246, 0.4)';">
-                <span>🌐 Página Oficial do Concurso na Banca</span>
-                <span style="font-size: 11px;">↗</span>
-            </a>
-            <span style="color: #64748b; font-size: 12px; font-family: monospace;">{link_oficial[:60]}{'...' if len(link_oficial) > 60 else ''}</span>
-        </div>
-        """
-        st.markdown(link_badge_html, unsafe_allow_html=True)
+    link_inscricao = (edital_atual.get("link_inscricao") or "").strip()
+    
+    col_links, col_edit_btn = st.columns([3.5, 1])
+    with col_links:
+        badges_html = []
+        if link_oficial:
+            badges_html.append(
+                f'<a href="{link_oficial}" target="_blank" rel="noopener noreferrer" style="'
+                f'display: inline-flex; align-items: center; gap: 6px; '
+                f'background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(59, 130, 246, 0.12)); '
+                f'border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; padding: 6px 14px; '
+                f'border-radius: 6px; text-decoration: none; font-size: 13.5px; font-weight: 500;">'
+                f'<span>🌐 Página Oficial / Editais</span><span style="font-size: 11px;">↗</span></a>'
+                f'<span style="color: #64748b; font-size: 12px; font-family: monospace;">'
+                f'{link_oficial[:45]}{"..." if len(link_oficial) > 45 else ""}</span>'
+            )
+        if link_inscricao:
+            badges_html.append(
+                f'<a href="{link_inscricao}" target="_blank" rel="noopener noreferrer" style="'
+                f'display: inline-flex; align-items: center; gap: 6px; '
+                f'background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.12)); '
+                f'border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; padding: 6px 14px; '
+                f'border-radius: 6px; text-decoration: none; font-size: 13.5px; font-weight: 500;">'
+                f'<span>📝 Portal de Inscrição</span><span style="font-size: 11px;">↗</span></a>'
+                f'<span style="color: #64748b; font-size: 12px; font-family: monospace;">'
+                f'{link_inscricao[:45]}{"..." if len(link_inscricao) > 45 else ""}</span>'
+            )
+        if badges_html:
+            content_html = " ".join(badges_html)
+            st.markdown(
+                f'<div style="margin-bottom: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">{content_html}</div>',
+                unsafe_allow_html=True
+            )
+
+    with col_edit_btn:
+        btn_label = "✖️ Fechar Edição" if st.session_state.get(edit_key, False) else "✏️ Editar Concurso"
+        if st.button(btn_label, key=f"btn_toggle_edit_{selected_edital_id}", use_container_width=True):
+            st.session_state[edit_key] = not st.session_state.get(edit_key, False)
+            st.rerun()
 
     # Detalhes do Edital Selecionado em Cards Premium
     col_d1, col_d2, col_d3, col_d4 = st.columns(4)

@@ -154,7 +154,8 @@ def check_and_notify_cronograma_deadlines(
                 situacao=alerta_situacao,
                 interessado=interessado,
                 cargo=item.get("edital_cargo", ""),
-                detalhes=item.get("observacao", "")
+                detalhes=item.get("observacao", ""),
+                link_inscricao=item.get("link_inscricao", "")
             )
 
             logger.info(f"📲 Disparando alerta de cronograma ({tipo_alerta}) para {rec['name']} ({phone})...")

@@ -136,7 +136,8 @@ def format_cronograma_deadline_message(
     cargo: str = "",
     detalhes: str = "",
     local_url: str = "",
-    public_url: str = ""
+    public_url: str = "",
+    link_inscricao: str = ""
 ) -> str:
     """
     Gera o texto formatado para notificação de prazos e datas importantes do cronograma no WhatsApp.
@@ -165,6 +166,9 @@ def format_cronograma_deadline_message(
         if len(clean_detalhes) > 200:
             clean_detalhes = clean_detalhes[:197] + "..."
         lines.append(f"📝 *Detalhes:* {clean_detalhes}")
+
+    if link_inscricao and link_inscricao.strip():
+        lines.append(f"✍️ *Link de Inscrição:* {link_inscricao.strip()}")
 
     # Links de Acesso
     l_url = (local_url or os.getenv("APP_LOCAL_URL", "https://diarios.pk.local")).rstrip("/")

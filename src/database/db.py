@@ -98,6 +98,7 @@ def init_db():
                 arquivo_nome TEXT NOT NULL,
                 arquivo_path TEXT NOT NULL,
                 link_oficial TEXT DEFAULT '',
+                link_inscricao TEXT DEFAULT '',
                 total_paginas INTEGER DEFAULT 0,
                 observacoes TEXT DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -185,6 +186,12 @@ def init_db():
 
         try:
             cursor.execute("ALTER TABLE monitored_names ADD COLUMN callmebot_apikey TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # Coluna já existe
+
+        # Migração defensiva: garante que a coluna link_inscricao exista na tabela editais
+        try:
+            cursor.execute("ALTER TABLE editais ADD COLUMN link_inscricao TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # Coluna já existe
 
@@ -721,7 +728,8 @@ def get_scan_history(limit: int = 200) -> list:
 
 def save_edital(titulo: str, cargo: str, banca: str, ano: int, interessado: str,
                 arquivo_nome: str, arquivo_path: str, link_oficial: str = "",
-                total_paginas: int = 0, observacoes: str = "", status: str = "Em Andamento") -> int:
+                total_paginas: int = 0, observacoes: str = "", status: str = "Em Andamento",
+                link_inscricao: str = "") -> int:
     """Salva um novo edital no banco de dados e retorna o id gerado."""
     try:
         conn = get_connection()
@@ -729,11 +737,11 @@ def save_edital(titulo: str, cargo: str, banca: str, ano: int, interessado: str,
         cursor.execute("""
             INSERT INTO editais (
                 titulo, cargo, banca, ano, interessado, status,
-                arquivo_nome, arquivo_path, link_oficial, total_paginas, observacoes
+                arquivo_nome, arquivo_path, link_oficial, link_inscricao, total_paginas, observacoes
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (titulo, cargo, banca, ano, interessado, status,
-              arquivo_nome, arquivo_path, link_oficial, total_paginas, observacoes))
+              arquivo_nome, arquivo_path, link_oficial, link_inscricao, total_paginas, observacoes))
         edital_id = cursor.lastrowid
         conn.commit()
         logger.info(f"Edital '{titulo}' inserido com sucesso (ID {edital_id}).")
@@ -787,7 +795,8 @@ def get_edital_by_id(edital_id: int):
             conn.close()
 
 def update_edital(edital_id: int, titulo: str, cargo: str, banca: str, ano: int,
-                  interessado: str, status: str, link_oficial: str = "", observacoes: str = "") -> bool:
+                  interessado: str, status: str, link_oficial: str = "", observacoes: str = "",
+                  link_inscricao: str = "") -> bool:
     """Atualiza as informações cadastrais de um edital."""
     try:
         conn = get_connection()
@@ -795,9 +804,9 @@ def update_edital(edital_id: int, titulo: str, cargo: str, banca: str, ano: int,
         cursor.execute("""
             UPDATE editais
             SET titulo = ?, cargo = ?, banca = ?, ano = ?, interessado = ?,
-                status = ?, link_oficial = ?, observacoes = ?, updated_at = CURRENT_TIMESTAMP
+                status = ?, link_oficial = ?, link_inscricao = ?, observacoes = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        """, (titulo, cargo, banca, ano, interessado, status, link_oficial, observacoes, edital_id))
+        """, (titulo, cargo, banca, ano, interessado, status, link_oficial, link_inscricao, observacoes, edital_id))
         conn.commit()
         return True
     except Exception as e:
@@ -935,7 +944,8 @@ def get_all_active_cronogramas() -> list:
                 e.banca as edital_banca,
                 e.ano as edital_ano,
                 e.interessado as edital_interessado,
-                e.link_oficial
+                e.link_oficial,
+                e.link_inscricao
             FROM edital_cronograma c
             JOIN editais e ON c.edital_id = e.id
             ORDER BY c.data_inicio ASC, c.ordem ASC

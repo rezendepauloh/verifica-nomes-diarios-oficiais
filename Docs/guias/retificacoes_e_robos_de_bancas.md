@@ -17,6 +17,13 @@ Seguindo o mesmo princípio modular dos motores de busca em diários oficiais, a
 - **Mecanismo**: Web scraping com `BeautifulSoup` adaptado para o portal da banca (`portal.concurso.fundacaofapec.org.br`).
 - **Comportamento**: Varre as listas de arquivos disponíveis (`.list-group-item`), extraindo a data de postagem, título oficial do edital e o link direto para download (`arquivo.php?file=...`).
 
+### 🏛️ UFMS Concursos (`fetch_ufms_concursos_documents`)
+- **Mecanismo**: Scraper especializado para o portal de concursos da UFMS (`https://www.concursos.ufms.br/`).
+- **Comportamento**: 
+  - Reconhece tanto links de notícia direta (`/front/news/view/<id>`), links de setup do concurso (`/front/setup/<id>`) quanto o portal geral de eventos (`/front/events`).
+  - Em páginas de notícia, correlaciona o título da publicação com os arquivos disponíveis na tabela de documentos (`/front/documents/download/<id>`) e inspeciona o setup pai correspondente para detectar novos editais e comunicados lançados posteriormente.
+  - Classifica semanticamente os documentos em *Edital de Abertura*, *Retificação*, *Inscrições*, *Atendimento Especial*, *Cotas / PcD*, *Isenção*, *Gabarito*, *Resultado*, *Convocação* ou *Regulamento*.
+
 ### 🌐 Bancas Genéricas (`fetch_generic_html_documents`)
 - **Mecanismo**: Crawler genérico baseado em HTML com resolução de links relativos (`urljoin`).
 - **Comportamento**: Identifica links apontando para arquivos `.pdf` e categoriza pelo texto do link (Retificação, Edital, Comunicado, Gabarito, etc.).

@@ -23,9 +23,12 @@ from src.editais.extractor_local import parse_date_smart, clean_event_text, clea
 from src.editais.updater import (
     is_cebraspe_url,
     is_fapec_url,
+    is_ufms_concursos_url,
     extract_cebraspe_slug,
     fetch_cebraspe_documents,
     fetch_fapec_documents,
+    fetch_ufms_concursos_documents,
+    check_for_updates,
     merge_retificacao_cronograma,
     merge_retificacao_verticalizado
 )
@@ -189,6 +192,67 @@ class TestEditaisDatabase:
         assert fapec_docs[0]["tipo"] == "Edital de Abertura"
         assert fapec_docs[0]["data_publicacao"] == "30/10/2026"
         assert "arquivo.php" in fapec_docs[0]["url_download"]
+
+        # Mock UFMS Concursos Scraper (concursos.ufms.br)
+        assert is_ufms_concursos_url("https://www.concursos.ufms.br/front/news/view/3421")
+        assert is_ufms_concursos_url("https://www.concursos.ufms.br/front/setup/121")
+        mock_ufms_html = """
+        <div class="panel-heading"><h4 class="text-center">Processo Seletivo Professor Visitante UFMS 2026</h4></div>
+        <div class="panel-body"><h4 class="text-info">Divulgado Edital para seleção de Professor Visitante</h4></div>
+        <table>
+            <tr>
+                <td><a href="https://www.concursos.ufms.br/front/documents/download/3766">Baixar</a></td>
+                <td>Edital PROGEP 147/2026</td>
+                <td>4.775</td>
+            </tr>
+        </table>
+        <small>Informação divulgada em 23-10-2026 07:50:28</small>
+        """
+        def mock_ufms_get(url, *args, **kwargs):
+            if "events" in url:
+                return MockResponse(text="""
+                <tr>
+                    <td><a href="https://www.concursos.ufms.br/front/setup/121">Setup</a></td>
+                    <td><a href="https://www.concursos.ufms.br/front/news/view/3421">Notícia 3421</a></td>
+                </tr>
+                """)
+            if "setup/121" in url:
+                return MockResponse(text="""
+                <a href="https://www.concursos.ufms.br/front/news/view/3421">Edital 147</a>
+                <a href="https://www.concursos.ufms.br/front/news/view/3426">Retificação 01</a>
+                """)
+            if "news/view/3426" in url:
+                return MockResponse(text="""
+                <div class="panel-body"><h4 class="text-info">Retificação do Cronograma</h4></div>
+                <table>
+                    <tr>
+                        <td><a href="https://www.concursos.ufms.br/front/documents/download/3770">Baixar</a></td>
+                        <td>Edital PROGEP 150/2026</td>
+                    </tr>
+                </table>
+                """)
+            return MockResponse(text=mock_ufms_html)
+
+        monkeypatch.setattr("requests.get", mock_ufms_get)
+        ufms_docs = fetch_ufms_concursos_documents("https://www.concursos.ufms.br/front/news/view/3421")
+        assert len(ufms_docs) >= 1
+        assert any("147/2026" in d["titulo"] for d in ufms_docs)
+        assert any(d["url_download"] == "https://www.concursos.ufms.br/front/documents/download/3766" for d in ufms_docs)
+
+        # Testa filtro inteligente: se o edital original já é a abertura, não o lista como "novo"
+        edital_id_ufms = save_edital(
+            titulo="UFMS Teste",
+            cargo="Técnico",
+            banca="FAPEC",
+            ano=2026,
+            interessado="Kamila",
+            arquivo_nome="Edital Concurso UFMS.pdf",
+            arquivo_path="/tmp/Edital_Concurso_UFMS.pdf",
+            link_oficial="https://portal.concurso.fundacaofapec.org.br/edital/ver/22"
+        )
+        novos, reg = check_for_updates(edital_id_ufms)
+        assert len(novos) == 0  # Edital de abertura já cadastrado é ignorado
+        delete_edital(edital_id_ufms)
 
     def test_merge_retificacao_avoids_wrong_matches(self):
         edital_id = save_edital(

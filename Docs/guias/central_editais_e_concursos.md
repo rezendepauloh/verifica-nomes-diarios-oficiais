@@ -10,19 +10,29 @@ A **Central de Editais** é o módulo do sistema voltado para centralizar, estru
 1. Acesse a aba **`📚 Editais & Concursos`**.
 2. Na barra lateral, clique no botão azul **`➕ Novo Edital (Upload)`**.
 3. Preencha as informações:
-   - **Título / Órgão do Concurso**: Ex: `CGU`, `TJMS`, `MPE-MS`.
-   - **Cargo Desejado**: Ex: `Auditor Federal de Finanças e Controle - Auditoria`, `Analista de TI`.
-   - **Banca Organizadora**: Ex: `Cebraspe`, `FGV`, `FAPEC`, `FCC`.
+   - **Título / Órgão do Concurso**: Ex: `UFMS`, `CGU`, `TJMS`.
+   - **Cargo Desejado**: Ex: `Professor Visitante - INBIO`, `Auditor Federal`.
+   - **Banca Organizadora**: Ex: `FAPEC`, `Cebraspe`, `FGV`.
    - **Ano**: Ex: `2026`.
    - **Candidato(a)**: `Paulo`, `Kamila` ou `Ambos`.
-   - **Link Oficial da Página do Concurso**: URL direta no site da banca (fundamental para o robô de retificações automáticas).
-   - **Arquivo do Edital (.pdf)**: Upload do arquivo oficial.
-4. **Auto-Descoberta de Cargos**: O sistema analisa o PDF e lista os cargos detectados no documento para você escolher o seu foco.
-5. Clique em **`💾 Salvar e Processar Edital`**. O extrator local analisa o cronograma de datas e as disciplinas específicas do seu cargo de forma automática.
+   - **Link Oficial da Página do Concurso / Editais**: URL onde são publicadas as retificações e comunicados.
+   - **Link Direto de Inscrição (Opcional)**: URL direta da plataforma de inscrições dos candidatos.
+   - **Arquivos do Edital (.pdf)**: Permite enviar **múltiplos PDFs de uma vez** (o 1º arquivo será o edital geral mestre, e os demais serão vinculados como editais específicos da área / anexos).
+4. **Auto-Descoberta de Cargos**: O sistema analisa o PDF principal e lista os cargos detectados no documento para você escolher o seu foco.
+5. Clique em **`💾 Salvar e Processar Edital`**. O extrator analisa o cronograma de datas e as disciplinas de forma automática.
 
 ---
 
-## 2. Navegação pelas Sub-Abas Internas
+## 2. Edição de Concursos Cadastrados (`✏️ Editar Concurso`)
+
+Caso precise atualizar informações de um concurso já cadastrado (como links, cargo, banca ou status):
+1. Selecione o concurso desejado no menu lateral.
+2. Clique no botão **`✏️ Editar Concurso`** (disponível no menu lateral e acima dos cards de detalhes).
+3. Ajuste os campos desejados e clique em **`💾 Salvar Alterações`**.
+
+---
+
+## 3. Navegação pelas Sub-Abas Internas
 
 Quando um concurso é selecionado, a aplicação disponibiliza 4 subtabs integradas:
 

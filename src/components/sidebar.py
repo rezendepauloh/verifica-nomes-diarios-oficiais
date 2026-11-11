@@ -112,6 +112,13 @@ def render_editais_sidebar(disciplinas_disponiveis: Optional[List[str]] = None) 
             format_func=lambda x: opcoes_editais[x],
             key="sb_selected_edital_id"
         )
+        if selected_edital_id:
+            edit_key = f"show_edit_edital_{selected_edital_id}"
+            is_editing = st.session_state.get(edit_key, False)
+            btn_txt = "✖️ Fechar Edição" if is_editing else "✏️ Editar Concurso"
+            if st.sidebar.button(btn_txt, key=f"sb_btn_edit_edital_{selected_edital_id}", use_container_width=True):
+                st.session_state[edit_key] = not is_editing
+                st.rerun()
     else:
         st.sidebar.info("Nenhum edital encontrado.")
 

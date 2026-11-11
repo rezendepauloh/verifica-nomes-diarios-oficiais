@@ -60,6 +60,11 @@ def is_fapec_url(url: str) -> bool:
     return "fapec.org" in (url or "").lower() or "fundacaofapec.org.br" in (url or "").lower()
 
 
+def is_ufms_concursos_url(url: str) -> bool:
+    """Verifica se a URL pertence ao portal oficial de concursos da UFMS."""
+    return "concursos.ufms.br" in (url or "").lower()
+
+
 def extract_cebraspe_slug(url: str) -> Optional[str]:
     """
     Extrai o slug do concurso da URL do Cebraspe.
@@ -192,6 +197,182 @@ def fetch_fapec_documents(url: str) -> List[Dict[str, Any]]:
         return []
 
 
+def _extract_ufms_news_documents(news_url: str) -> List[Dict[str, Any]]:
+    """Extrai documentos PDF associados a uma página de notícia específica de concursos.ufms.br."""
+    try:
+        from bs4 import BeautifulSoup
+        resp = requests.get(news_url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        docs = []
+        # Localiza a data de publicação no rodapé se disponível
+        data_pub = ""
+        footer_text = soup.get_text()
+        date_match = re.search(r'divulgada\s+em\s+(\d{2}-\d{2}-\d{4})', footer_text, re.IGNORECASE)
+        if date_match:
+            data_pub = date_match.group(1).replace("-", "/")
+
+        # Contexto textual da notícia (título da notícia e resumo)
+        news_title = ""
+        panel_body = soup.find("div", class_="panel-body")
+        if panel_body:
+            h4_info = panel_body.find("h4", class_="text-info")
+            if h4_info:
+                news_title = h4_info.get_text(" ", strip=True)
+
+        for tr in soup.find_all("tr"):
+            link_a = tr.find("a", href=lambda h: h and "documents/download" in h)
+            if not link_a:
+                continue
+            download_url = urljoin(news_url, link_a["href"].strip())
+
+            # O título fica na coluna TD ao lado ou no texto da linha
+            tds = tr.find_all("td")
+            doc_label = ""
+            if len(tds) >= 2:
+                doc_label = tds[1].get_text(strip=True)
+            if not doc_label:
+                doc_label = tr.get_text(" ", strip=True)
+
+            # Título completo e descritivo
+            if news_title and news_title.lower() not in doc_label.lower():
+                titulo = f"{doc_label} - {news_title}".strip(" -")
+            else:
+                titulo = doc_label or news_title or "Documento UFMS"
+
+            # Classificação semântica considerando tanto o nome do arquivo quanto o assunto da notícia
+            combined_text = f"{doc_label} {news_title}".lower()
+            tipo = "Outro"
+            if "retifica" in combined_text:
+                tipo = "Retificação"
+            elif "indeferid" in combined_text or "deferid" in combined_text or "inscri" in combined_text:
+                tipo = "Inscrições"
+            elif "atendimento especial" in combined_text:
+                tipo = "Atendimento Especial"
+            elif "pcd" in combined_text or "autodeclara" in combined_text:
+                tipo = "Cotas / PcD"
+            elif "isenção" in combined_text or "isencao" in combined_text:
+                tipo = "Isenção"
+            elif "gabarito" in combined_text:
+                tipo = "Gabarito"
+            elif "resultado" in combined_text or "classifica" in combined_text:
+                tipo = "Resultado"
+            elif "convoca" in combined_text:
+                tipo = "Convocação"
+            elif "regulamento" in combined_text:
+                tipo = "Regulamento"
+            elif "abertura" in combined_text or "edital nº 1" in combined_text or "edital de abertura" in combined_text:
+                tipo = "Edital de Abertura"
+            elif "edital" in combined_text:
+                tipo = "Edital"
+
+            docs.append({
+                "titulo": titulo,
+                "tipo": tipo,
+                "arquivo_nome": sanitize_friendly_filename(titulo),
+                "data_publicacao": data_pub,
+                "url_download": download_url,
+                "banca": "UFMS"
+            })
+        return docs
+    except Exception as e:
+        logger.error(f"Erro ao extrair documentos da notícia UFMS ({news_url}): {e}")
+        return []
+
+
+def fetch_ufms_concursos_documents(url: str) -> List[Dict[str, Any]]:
+    """
+    Scraper oficial para o portal de concursos da UFMS (concursos.ufms.br).
+    Suporta URLs de notícias (front/news/view/<id>), setup de concurso (front/setup/<id>)
+    ou a página de eventos/editais (front/events).
+    """
+    try:
+        from bs4 import BeautifulSoup
+        clean_url = (url or "").strip()
+        all_docs: List[Dict[str, Any]] = []
+        seen_downloads = set()
+
+        # Caso 1: URL direta de notícia (/front/news/view/<id>)
+        if "news/view" in clean_url:
+            news_docs = _extract_ufms_news_documents(clean_url)
+            for d in news_docs:
+                if d["url_download"] not in seen_downloads:
+                    seen_downloads.add(d["url_download"])
+                    all_docs.append(d)
+
+            # Tenta descobrir o setup pai ou links correlatos via front/events se disponível
+            try:
+                events_resp = requests.get("https://www.concursos.ufms.br/front/events", headers=HEADERS, timeout=10)
+                if events_resp.status_code == 200:
+                    ev_soup = BeautifulSoup(events_resp.text, "html.parser")
+                    # Encontra a linha que referencia esta notícia
+                    target_id = clean_url.split("/")[-1]
+                    for tr in ev_soup.find_all("tr"):
+                        if f"news/view/{target_id}" in str(tr):
+                            setup_link = tr.find("a", href=lambda h: h and "setup/" in h)
+                            if setup_link:
+                                setup_url = urljoin("https://www.concursos.ufms.br", setup_link["href"])
+                                # Busca notícias adicionais dentro desse setup
+                                sub_docs = fetch_ufms_concursos_documents(setup_url)
+                                for sd in sub_docs:
+                                    if sd["url_download"] not in seen_downloads:
+                                        seen_downloads.add(sd["url_download"])
+                                        all_docs.append(sd)
+                            break
+            except Exception as e:
+                logger.debug(f"Não foi possível obter setup associado à notícia {clean_url}: {e}")
+
+            return all_docs
+
+        # Caso 2: URL de Setup (/front/setup/<id>)
+        if "setup/" in clean_url:
+            resp = requests.get(clean_url, headers=HEADERS, timeout=15)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            # Itera sobre todas as notícias listadas no setup
+            news_links = []
+            for a in soup.find_all("a", href=True):
+                href = a["href"].strip()
+                if "news/view" in href:
+                    full_news = urljoin(clean_url, href)
+                    if full_news not in news_links:
+                        news_links.append(full_news)
+
+            for n_url in news_links:
+                docs = _extract_ufms_news_documents(n_url)
+                for d in docs:
+                    if d["url_download"] not in seen_downloads:
+                        seen_downloads.add(d["url_download"])
+                        all_docs.append(d)
+
+            return all_docs
+
+        # Caso 3: URL genérica ou /front/events
+        resp = requests.get(clean_url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tr in soup.find_all("tr"):
+            for a in tr.find_all("a", href=lambda h: h and "documents/download" in h):
+                d_url = urljoin(clean_url, a["href"].strip())
+                if d_url not in seen_downloads:
+                    seen_downloads.add(d_url)
+                    tit = tr.get_text(" ", strip=True)[:120]
+                    all_docs.append({
+                        "titulo": tit,
+                        "tipo": "Edital",
+                        "arquivo_nome": sanitize_friendly_filename(tit),
+                        "data_publicacao": "",
+                        "url_download": d_url,
+                        "banca": "UFMS"
+                    })
+        return all_docs
+    except Exception as e:
+        logger.error(f"Erro ao buscar documentos UFMS Concursos ({url}): {e}")
+        return []
+
+
 def fetch_generic_html_documents(url: str) -> List[Dict[str, Any]]:
     """
     Crawler genérico para portais de concursos que expõem links HTML diretos para PDFs.
@@ -236,6 +417,49 @@ def fetch_generic_html_documents(url: str) -> List[Dict[str, Any]]:
         return []
 
 
+def is_document_same_as_original(doc: Dict[str, Any], edital: Dict[str, Any]) -> bool:
+    """
+    Verifica se um documento retornado pelo portal da banca corresponde
+    ao edital original de abertura que já foi cadastrado no sistema.
+    """
+    nome_original = (edital.get("arquivo_nome") or "").lower().strip()
+    caminho_original = edital.get("arquivo_path") or ""
+    
+    # 1. Comparação direta de nomes de arquivo sanitizados
+    doc_arq = (doc.get("arquivo_nome") or "").lower().strip()
+    if nome_original:
+        orig_clean = re.sub(r'[\W_]+', '', nome_original.replace(".pdf", ""))
+        doc_clean = re.sub(r'[\W_]+', '', doc_arq.replace(".pdf", ""))
+        if orig_clean and doc_clean and (orig_clean in doc_clean or doc_clean in orig_clean):
+            return True
+
+    # 2. Tipo explícito como Edital de Abertura / Edital Inicial
+    tipo_doc = (doc.get("tipo") or "").lower().strip()
+    tit_doc = (doc.get("titulo") or "").lower().strip()
+    
+    eh_tipo_abertura = (
+        tipo_doc == "edital de abertura" or
+        "abertura" in tit_doc or
+        "edital nº 1" in tit_doc or
+        "edital n. 001" in tit_doc or
+        "edital nº 001" in tit_doc or
+        "edital 01" in tit_doc or
+        "edital n.º 001" in tit_doc or
+        "edital progep/ufms" in tit_doc
+    )
+
+    # Não pode ser marcado como abertura se for explicitamente retificação
+    if "retifica" in tit_doc or "retificação" in tipo_doc:
+        eh_tipo_abertura = False
+
+    if eh_tipo_abertura:
+        # Se na página da banca o documento é a abertura e o edital já tem um PDF original cadastrado
+        if caminho_original:
+            return True
+
+    return False
+
+
 def check_for_updates(edital_id: int) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Verifica atualizações e retificações para um edital.
@@ -250,6 +474,8 @@ def check_for_updates(edital_id: int) -> Tuple[List[Dict[str, Any]], List[Dict[s
         remote_docs = fetch_cebraspe_documents(url)
     elif is_fapec_url(url):
         remote_docs = fetch_fapec_documents(url)
+    elif is_ufms_concursos_url(url):
+        remote_docs = fetch_ufms_concursos_documents(url)
     else:
         remote_docs = fetch_generic_html_documents(url)
 
@@ -257,17 +483,14 @@ def check_for_updates(edital_id: int) -> Tuple[List[Dict[str, Any]], List[Dict[s
     urls_registradas = {d["url_origem"] for d in registrados if d.get("url_origem")}
     titulos_registrados = {d["titulo"].strip().lower() for d in registrados}
 
-    # Também considera o edital original já registrado
-    nome_original = edital.get("arquivo_nome", "").lower()
-
     novos = []
     for doc in remote_docs:
         url_d = doc["url_download"]
         tit = doc["titulo"].strip().lower()
         if url_d in urls_registradas or tit in titulos_registrados:
             continue
-        # Se for o próprio arquivo original cadastrado, ignora como "novo"
-        if nome_original and nome_original in doc["arquivo_nome"].lower():
+        # Se for o próprio edital de abertura original já cadastrado, ignora
+        if is_document_same_as_original(doc, edital):
             continue
         novos.append(doc)
 
