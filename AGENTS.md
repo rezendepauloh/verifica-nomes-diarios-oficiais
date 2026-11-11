@@ -91,6 +91,10 @@ O **Verifica Nomes em Diários Oficiais & Central de Editais de Concursos** é u
    - Mantenha menus contextuais integrados na barra lateral e divididos por subtab ativa (`st.session_state["editais_internal_subtabs"]`).
 4. **Resolução de Caminhos de Arquivo (Docker vs Host)**:
    - Use sempre `resolve_pdf_path()` para lidar com arquivos salvos tanto dentro do container (`/app/uploads/editais/...`) quanto no host (`uploads/editais/...`).
+5. **Formatação PT-BR e Números**:
+   - Números nos cards, tabelas e gráficos devem usar vírgula como separador decimal e ponto como separador de milhar.
+6. **Comunicação Objetiva e Foco Técnico**:
+   - Vá direto ao ponto, priorizando códigos limpos, testes automatizados e dados estruturados, sem explicações prolixas desnecessárias.
 
 ---
 

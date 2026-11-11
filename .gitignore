@@ -23,13 +23,25 @@ data/*.sqlite
 .vscode/
 .idea/
 .pytest_cache/
+.ipynb_checkpoints/
+.antigravity/
 
+# Credentials and sensitive files
+credentials.json
+
+# Build and temporary files
+dist/
+build/
+*.tmp
+*.bak
+*.docker_build_hash
+
+# Directories
 parsers/
 uploads/
 logs/
 logs/*
 logs/app.log
-.docker_build_hash
 temp/
 
 # Certificados

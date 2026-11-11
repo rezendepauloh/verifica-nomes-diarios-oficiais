@@ -16,7 +16,8 @@ Docs/
 │   ├── cronograma_e_google_agenda.md          # Geração de calendário RFC-5545 (.ics), eventos e status
 │   ├── retificacoes_e_robos_de_bancas.md      # Robô Cebraspe (API), FAPEC (scraper) e mesclagem não-destrutiva
 │   ├── monitoramento_diarios_e_whatsapp.md    # Como cadastrar nomes, fontes, rotinas cron e CallMeBot
-│   └── deploy_docker_e_homelab.md             # Orquestração local (docker-compose) e deploy no Mini PC (Dockge)
+│   ├── deploy_docker_e_homelab.md             # Orquestração local (docker-compose) e deploy no Mini PC (Dockge)
+│   └── limpeza_processed_urls.md              # Limpeza e reset do cache de URLs processadas no SQLite via Docker/local
 │
 ├── 🏛️ arquitetura/                            # Decisões fundamentais de engenharia e modelagem
 │   ├── modelagem_banco_de_dados.md            # Schema SQLite (results.db), tabelas e migrações defensivas
@@ -48,4 +49,5 @@ Docs/
 - **Como rodar todos os testes automatizados:** [Suíte de Testes](testes/suite_de_testes_automatizados.md)
 - **Como funciona a estrutura de pastas dos editais:** [Estrutura de Slugs & Uploads](arquitetura/estrutura_de_diretorios_slugs.md)
 - **Subir aplicação via Docker:** [Deploy Docker & Homelab](guias/deploy_docker_e_homelab.md)
+- **Resetar cache de leitura de diários oficiais:** [Limpeza de URLs Processadas](guias/limpeza_processed_urls.md)
 
