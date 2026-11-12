@@ -16,7 +16,7 @@ from src.database import (
     has_cronograma_alert_been_sent,
     record_cronograma_alert_sent,
 )
-from src.editais.calendar_utils import compute_event_status, parse_date_smart
+from src.editais.calendar_utils import compute_event_status, parse_date_smart, parse_iso_date
 from src.notifications import format_cronograma_deadline_message, send_whatsapp_message
 
 
@@ -83,12 +83,16 @@ def check_and_notify_cronograma_deadlines(
         # d_inicio no banco pode ser a string inteira de período ou a data inicial
         data_referencia = d_inicio or d_fim or ""
         dt_inicio_iso, dt_fim_iso, _ = parse_date_smart(data_referencia)
+        d_ini_obj = parse_iso_date(dt_inicio_iso)
+        d_fim_obj = parse_iso_date(dt_fim_iso) or d_ini_obj
 
         # Calcula a situação em tempo real (Concluído, Em Andamento, Hoje, Previsto)
         situacao_texto, badge_situacao = compute_event_status(data_referencia, today=today)
 
         # Monta a string legível do prazo
-        if d_inicio and d_fim and d_inicio != d_fim:
+        if dt_inicio_iso and dt_fim_iso and dt_inicio_iso != dt_fim_iso:
+            prazo_str = f"{dt_inicio_iso} a {dt_fim_iso}"
+        elif d_inicio and d_fim and d_inicio != d_fim and d_fim not in d_inicio:
             prazo_str = f"{d_inicio} a {d_fim}"
         else:
             prazo_str = data_referencia or "A definir"
@@ -103,21 +107,21 @@ def check_and_notify_cronograma_deadlines(
             events_today += 1
         elif situacao_texto.lower() == "em andamento":
             # Se hoje é exatamente o primeiro dia ou o último dia do período
-            if dt_fim_iso == today.isoformat():
+            if d_fim_obj == today:
                 tipo_alerta = "hoje"
                 alerta_situacao = "🚨 Último dia Hoje!"
                 events_today += 1
-            elif dt_inicio_iso == today.isoformat():
+            elif d_ini_obj == today:
                 tipo_alerta = "hoje"
                 alerta_situacao = "🟢 Começa Hoje!"
                 events_today += 1
-            elif include_tomorrow and dt_fim_iso == tomorrow.isoformat():
+            elif include_tomorrow and d_fim_obj == tomorrow:
                 tipo_alerta = "amanha"
                 alerta_situacao = "⏳ Encerra Amanhã"
                 events_tomorrow += 1
         elif include_tomorrow:
             # Eventos previstos que começam amanhã
-            if dt_inicio_iso == tomorrow.isoformat() or (not dt_inicio_iso and dt_fim_iso == tomorrow.isoformat()):
+            if d_ini_obj == tomorrow or (not d_ini_obj and d_fim_obj == tomorrow):
                 tipo_alerta = "amanha"
                 alerta_situacao = "⏳ Prazo Amanhã"
                 events_tomorrow += 1
