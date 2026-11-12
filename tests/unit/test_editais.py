@@ -17,7 +17,9 @@ from src.database import (
     update_verticalizado_item,
     save_edital_documento,
     get_documentos_by_edital,
-    mark_documento_as_processed
+    mark_documento_as_processed,
+    record_cronograma_alert_sent,
+    get_cronograma_alert_history
 )
 from src.editais.extractor_local import parse_date_smart, clean_event_text, clean_topic_string
 from src.editais.updater import (
@@ -123,6 +125,21 @@ class TestEditaisDatabase:
         mark_documento_as_processed(doc_id, resumo="1 atualizado, 1 novo")
         docs_updated = get_documentos_by_edital(edital_id)
         assert docs_updated[0]["processado"] == 1
+
+        # Testa registro e consulta de histórico de alertas de cronograma
+        crono_first = crono_atualizado[0]["id"]
+        record_cronograma_alert_sent(
+            cronograma_id=crono_first,
+            edital_id=edital_id,
+            tipo_alerta="amanha",
+            data_alvo="2026-11-12",
+            phone="(67) 99853-8804"
+        )
+        hist = get_cronograma_alert_history(limit=10)
+        assert len(hist) >= 1
+        assert hist[0]["tipo_alerta"] == "amanha"
+        assert hist[0]["phone"] == "(67) 99853-8804"
+        assert hist[0]["edital_titulo"] == "Concurso Teste Retificações"
 
         # Testa URLs cebraspe e fapec
         assert is_cebraspe_url("https://www.cebraspe.org.br/concursos/cgu_26_affc")

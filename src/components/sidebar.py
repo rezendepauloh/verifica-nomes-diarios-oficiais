@@ -311,6 +311,17 @@ def render_configuracoes_sidebar():
             container=st.sidebar
         )
 
+    elif current_subtab == "alertas_editais":
+        st.sidebar.markdown("#### 📅 Histórico de Alertas")
+        st.sidebar.caption("Controle a quantidade de notificações exibidas na tabela.")
+        render_items_per_page_selector(
+            key_prefix="crono_alerts_hist",
+            options=[10, 20, 50, 100, "Todos"],
+            default_index=0,
+            label="📄 Alertas por página:",
+            container=st.sidebar
+        )
+
     else:
         st.sidebar.info("Utilize as abas centrais da página para gerenciar pessoas, fontes de dados, agendamento de varredura e logs do sistema.")
 

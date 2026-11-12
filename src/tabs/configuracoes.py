@@ -23,7 +23,8 @@ from src.database import (
     seed_config_from_env_if_empty,
     get_schedule_config,
     save_schedule_config,
-    get_scan_history
+    get_scan_history,
+    get_cronograma_alert_history
 )
 from src.scrapers import is_scraper_implemented
 from src.scheduler import calculate_next_run, trigger_manual_test_scan, DAY_LABELS
@@ -46,6 +47,7 @@ CONFIG_SUBTABS = {
     "nomes": "👥 Nomes Monitorados",
     "fontes": "🌐 Fontes & Diários Oficiais",
     "agendamento": "⏰ Agendamento Automático",
+    "alertas_editais": "📅 Alertas de Concursos",
     "backup": "💾 Sincronização & Backup"
 }
 
@@ -577,7 +579,144 @@ def render_configuracoes_tab():
             st.info("Nenhuma execução registrada no histórico ainda. Quando o agendador ou o teste rodarem, os registros aparecerão aqui.")
 
     # -------------------------------------------------------------------------
-    # SUBTAB 4: SINCRONIZAÇÃO & BACKUP
+    # SUBTAB 4: ALERTAS DE CONCURSOS & CRONOGRAMAS (WHATSAPP)
+    # -------------------------------------------------------------------------
+    elif selected_subtab == "alertas_editais":
+        st.markdown("### 📅 Alertas de Concursos & Prazos (WhatsApp)")
+        st.caption("Acompanhe o histórico de lembretes e avisos de prazos de editais enviados aos candidatos via CallMeBot.")
+
+        from src.editais.notifications import check_and_notify_cronograma_deadlines
+
+        # Ações Rápidas & Disparos
+        col_crono_info, col_crono_actions = st.columns([2.5, 1.5])
+        with col_crono_info:
+            st.info("""
+                💡 **Rotina Autônoma de Prazos:**
+                - O sistema executa diariamente às **07:30** no container.
+                - Identifica etapas de editais ativos que **vencem hoje** ou **encerram amanhã**.
+                - Notifica cada candidato no WhatsApp com links de acesso direto.
+            """)
+        with col_crono_actions:
+            st.markdown("#### ⚡ Ações Imediatas")
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                if st.button("🚀 Verificar Hoje", use_container_width=True, help="Executa a checagem diária agora e avisa no WhatsApp prazos de hoje e amanhã."):
+                    res = check_and_notify_cronograma_deadlines(force_all=False)
+                    st.toast(f"✅ Checagem concluída! {res.get('alerts_sent', 0)} alerta(s) enviado(s).", icon="📅")
+                    st.rerun()
+            with col_b2:
+                if st.button("📲 Teste de Alerta", use_container_width=True, help="Dispara uma notificação de teste para validar a entrega no WhatsApp."):
+                    res = check_and_notify_cronograma_deadlines(force_all=True)
+                    st.toast(f"📲 Alerta de teste disparado com sucesso!", icon="🔔")
+                    st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Histórico de Alertas
+        alert_rows = get_cronograma_alert_history(limit=500)
+        
+        # Métricas resumidas
+        total_alertas = len(alert_rows)
+        hoje_count = sum(1 for r in alert_rows if r.get("tipo_alerta") == "hoje")
+        amanha_count = sum(1 for r in alert_rows if r.get("tipo_alerta") == "amanha")
+        teste_count = sum(1 for r in alert_rows if r.get("tipo_alerta") == "teste_manual")
+
+        render_metric_cards([
+            {"title": "Total de Alertas Enviados", "value": total_alertas, "border_color": "#2563eb"},
+            {"title": "Alertas de Vencimento Hoje", "value": hoje_count, "border_color": "#ef4444"},
+            {"title": "Lembretes com Aviso Prévio (Amanhã)", "value": amanha_count, "border_color": "#f59e0b"},
+            {"title": "Disparos de Teste / Manual", "value": teste_count, "border_color": "#10b981"},
+        ])
+
+        st.markdown("<br><hr style='border-color: rgba(128,128,128,0.2);'>", unsafe_allow_html=True)
+        col_al_title, col_al_btn = st.columns([3, 1])
+        with col_al_title:
+            st.markdown("#### 📜 Registro de Notificações Enviadas")
+            st.caption("Detalhamento de cada mensagem entregue via CallMeBot para os candidatos.")
+        with col_al_btn:
+            if st.button("🔄 Atualizar Registros", key="btn_refresh_alertas_editais", use_container_width=True):
+                st.rerun()
+
+        if alert_rows:
+            from src.components.pagination import (
+                render_items_per_page_selector,
+                paginate_items,
+                render_pagination_controls
+            )
+
+            grid_data = []
+            for r in alert_rows:
+                # Badge do tipo de alerta
+                tipo_raw = r.get("tipo_alerta", "")
+                if tipo_raw == "hoje":
+                    tipo_badge = "🚨 Vence Hoje"
+                elif tipo_raw == "amanha":
+                    tipo_badge = "⏳ Encerra Amanhã"
+                elif tipo_raw == "teste_manual":
+                    tipo_badge = "🧪 Teste Manual"
+                else:
+                    tipo_badge = tipo_raw.title() if tipo_raw else "-"
+
+                # Prazo formatado
+                d_ini = r.get("data_inicio", "")
+                d_fim = r.get("data_fim", "")
+                if d_ini and d_fim and d_ini != d_fim and d_fim not in d_ini:
+                    prazo_lbl = f"{d_ini} a {d_fim}"
+                else:
+                    prazo_lbl = d_ini or d_fim or "-"
+
+                grid_data.append({
+                    "Horário do Envio": format_br_datetime(r.get("created_at")),
+                    "Concurso": r.get("edital_titulo") or "Edital",
+                    "Cargo": r.get("edital_cargo") or "-",
+                    "Candidato(a)": r.get("edital_interessado") or "Ambos",
+                    "Etapa / Atividade": r.get("evento") or "-",
+                    "Prazo": prazo_lbl,
+                    "Tipo de Alerta": tipo_badge,
+                    "Destinatário": format_phone(r.get("phone")),
+                    "Status": "✅ Entregue"
+                })
+
+            df_alerts = pd.DataFrame(grid_data)
+
+            # Paginação (controlada via sidebar)
+            items_per_page = int(st.session_state.get("crono_alerts_hist_items_per_page", 10)) if str(st.session_state.get("crono_alerts_hist_items_per_page", 10)).lower() != "todos" else 999999
+
+            df_page, curr_p, tot_p, tot_items = paginate_items(
+                df_alerts,
+                page_key="crono_alerts_history_grid",
+                items_per_page=items_per_page
+            )
+
+            st.dataframe(
+                df_page,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Horário do Envio": st.column_config.TextColumn("Horário do Envio", width="medium"),
+                    "Concurso": st.column_config.TextColumn("Concurso", width="medium"),
+                    "Cargo": st.column_config.TextColumn("Cargo", width="small"),
+                    "Candidato(a)": st.column_config.TextColumn("Candidato(a)", width="small"),
+                    "Etapa / Atividade": st.column_config.TextColumn("Etapa / Atividade", width="large"),
+                    "Prazo": st.column_config.TextColumn("Prazo / Data", width="small"),
+                    "Tipo de Alerta": st.column_config.TextColumn("Tipo de Alerta", width="small"),
+                    "Destinatário": st.column_config.TextColumn("Destinatário", width="small"),
+                    "Status": st.column_config.TextColumn("Status", width="small")
+                }
+            )
+
+            render_pagination_controls(
+                page_key="crono_alerts_history_grid",
+                current_page=curr_p,
+                total_pages=tot_p,
+                total_items=tot_items,
+                items_per_page=items_per_page
+            )
+        else:
+            st.info("Nenhum alerta de concurso enviado ainda. Quando houver prazos vencendo hoje ou amanhã, os disparos aparecerão aqui.")
+
+    # -------------------------------------------------------------------------
+    # SUBTAB 5: SINCRONIZAÇÃO & BACKUP
     # -------------------------------------------------------------------------
     elif selected_subtab == "backup":
         st.markdown("### 💾 Sincronização & Migração de Dados")

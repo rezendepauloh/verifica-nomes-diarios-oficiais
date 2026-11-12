@@ -36,6 +36,7 @@ from .db import (
     clear_cronograma_by_edital,
     has_cronograma_alert_been_sent,
     record_cronograma_alert_sent,
+    get_cronograma_alert_history,
     get_all_active_cronogramas,
     save_verticalizado_items,
     get_verticalizado_by_edital,

@@ -923,6 +923,40 @@ def record_cronograma_alert_sent(cronograma_id: int, edital_id: int, tipo_alerta
         if 'conn' in locals():
             conn.close()
 
+def get_cronograma_alert_history(limit: int = 500) -> list:
+    """Retorna o histórico de alertas de cronograma enviados via WhatsApp enriquecido com dados do edital."""
+    try:
+        conn = get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                h.id,
+                h.created_at,
+                h.tipo_alerta,
+                h.data_alvo,
+                h.phone,
+                e.id as edital_id,
+                COALESCE(e.titulo, 'Edital Removido') as edital_titulo,
+                COALESCE(e.cargo, '') as edital_cargo,
+                COALESCE(e.interessado, 'Ambos') as edital_interessado,
+                COALESCE(c.evento, 'Evento Removido') as evento,
+                COALESCE(c.data_inicio, '') as data_inicio,
+                COALESCE(c.data_fim, '') as data_fim
+            FROM cronograma_alert_history h
+            LEFT JOIN editais e ON e.id = h.edital_id
+            LEFT JOIN edital_cronograma c ON c.id = h.cronograma_id
+            ORDER BY h.id DESC
+            LIMIT ?
+        """, (limit,))
+        return [dict(r) for r in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Erro ao buscar histórico de alertas de cronograma: {e}")
+        return []
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
 def get_all_active_cronogramas() -> list:
     """Retorna todos os eventos de cronograma de editais ativos com os dados do edital associado."""
     try:
