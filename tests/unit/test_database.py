@@ -101,22 +101,22 @@ class TestMonitoredNames(BaseIsolatedDbTest):
     """Testa cadastro, edição e consulta de nomes monitorados."""
 
     def test_add_and_get_names(self):
-        success = add_monitored_name("Paulo Henrique", "(67) 99247-1379", "3587903")
+        success = add_monitored_name("Paulo Henrique", "(67) 99999-0001", "1000001")
         self.assertTrue(success)
 
         all_names = get_all_monitored_names()
         self.assertEqual(len(all_names), 1)
         self.assertEqual(all_names[0][1], "Paulo Henrique")
-        self.assertEqual(all_names[0][2], "(67) 99247-1379")
-        self.assertEqual(all_names[0][3], "3587903")
+        self.assertEqual(all_names[0][2], "(67) 99999-0001")
+        self.assertEqual(all_names[0][3], "1000001")
         self.assertEqual(all_names[0][4], 1)
 
     def test_add_duplicate_name_fails(self):
-        add_monitored_name("Paulo", "(67) 99247-1379")
-        self.assertFalse(add_monitored_name("Paulo", "(67) 99247-1379"))
+        add_monitored_name("Paulo", "(67) 99999-0001")
+        self.assertFalse(add_monitored_name("Paulo", "(67) 99999-0001"))
 
     def test_toggle_name_status(self):
-        add_monitored_name("Paulo", "(67) 99247-1379")
+        add_monitored_name("Paulo", "(67) 99999-0001")
         name_id = get_all_monitored_names()[0][0]
 
         toggle_monitored_name(name_id, current_active=1)
@@ -126,14 +126,14 @@ class TestMonitoredNames(BaseIsolatedDbTest):
         self.assertEqual(len(get_active_monitored_names()), 1)
 
     def test_delete_name(self):
-        add_monitored_name("Paulo", "(67) 99247-1379")
+        add_monitored_name("Paulo", "(67) 99999-0001")
         name_id = get_all_monitored_names()[0][0]
         self.assertTrue(delete_monitored_name(name_id))
         self.assertEqual(len(get_all_monitored_names()), 0)
 
     def test_whatsapp_notification_recipients(self):
-        add_monitored_name("Paulo", "(67) 99247-1379", "3587903")
-        add_monitored_name("Kamila", "(67) 99853-8804", "9835298")
+        add_monitored_name("Paulo", "(67) 99999-0001", "1000001")
+        add_monitored_name("Kamila", "(67) 99999-0002", "1000002")
         add_monitored_name("Sem Chave", "(67) 3345-0000", "")
 
         recipients = get_whatsapp_notification_recipients()

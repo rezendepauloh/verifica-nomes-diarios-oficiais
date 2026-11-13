@@ -25,9 +25,9 @@ class TestNormalizePhone(unittest.TestCase):
 
     def test_br_phone_with_formatting(self):
         # 11 dígitos com o '9' após DDD -> remove o '9' para padrão CallMeBot/WhatsApp
-        self.assertEqual(normalize_phone("(67) 99247-1379"), "556792471379")
-        self.assertEqual(normalize_phone("+55 67 99247-1379"), "556792471379")
-        self.assertEqual(normalize_phone("67992471379"), "556792471379")
+        self.assertEqual(normalize_phone("(67) 99999-0001"), "556799990001")
+        self.assertEqual(normalize_phone("+55 67 99999-0001"), "556799990001")
+        self.assertEqual(normalize_phone("67999990001"), "556799990001")
 
     def test_br_phone_already_8_digits(self):
         # 10 dígitos (DDD + 8 dígitos) -> adiciona DDI 55
@@ -36,7 +36,7 @@ class TestNormalizePhone(unittest.TestCase):
 
     def test_br_phone_with_ddi_13_digits(self):
         # 13 dígitos: 55 + 67 + 9 + 8 dígitos -> 5567 + 8 dígitos
-        self.assertEqual(normalize_phone("5567998538804"), "556798538804")
+        self.assertEqual(normalize_phone("5567999990002"), "556799990002")
 
 
 class TestFormatMessage(unittest.TestCase):
@@ -92,8 +92,8 @@ class TestFormatMessage(unittest.TestCase):
             interessado="Paulo",
             cargo="Assistente em Administração",
             detalhes="Taxa de R$ 100,00",
-            local_url="https://diarios.pk.local",
-            public_url="https://diarios-paulo.shares.zrok.io"
+            local_url="https://painel.local.test",
+            public_url="https://painel.remoto.test"
         )
         self.assertIn("🚨 *ALERTA DE CONCURSO: PRAZO HOJE!* 🚨", msg)
         self.assertIn("Paulo", msg)
@@ -101,8 +101,8 @@ class TestFormatMessage(unittest.TestCase):
         self.assertIn("Assistente em Administração", msg)
         self.assertIn("Período de Inscrições", msg)
         self.assertIn("05/11/2026 a 20/11/2026", msg)
-        self.assertIn("https://diarios.pk.local", msg)
-        self.assertIn("https://diarios-paulo.shares.zrok.io", msg)
+        self.assertIn("https://painel.local.test", msg)
+        self.assertIn("https://painel.remoto.test", msg)
 
 
 class TestCronogramaNotifications(unittest.TestCase):
@@ -122,7 +122,7 @@ class TestCronogramaNotifications(unittest.TestCase):
         mock_send_msg
     ):
         mock_get_recipients.return_value = [
-            {"name": "Paulo Henrique", "phone": "5567992471379", "callmebot_apikey": "123456"}
+            {"name": "Paulo Henrique", "phone": "5567999990001", "callmebot_apikey": "123456"}
         ]
         mock_get_cronos.return_value = [
             {
@@ -163,11 +163,11 @@ class TestSendWhatsAppMessage(unittest.TestCase):
         mock_resp.text = "Message queued."
         mock_get.return_value = mock_resp
 
-        result = send_whatsapp_message("(67) 99247-1379", "Mensagem de teste", apikey="123456")
+        result = send_whatsapp_message("(67) 99999-0001", "Mensagem de teste", apikey="123456")
         self.assertTrue(result)
         mock_get.assert_called_once()
         args, kwargs = mock_get.call_args
-        self.assertEqual(kwargs["params"]["phone"], "556792471379")
+        self.assertEqual(kwargs["params"]["phone"], "556799990001")
         self.assertEqual(kwargs["params"]["apikey"], "123456")
 
     @patch("requests.get")
@@ -177,7 +177,7 @@ class TestSendWhatsAppMessage(unittest.TestCase):
         mock_resp.text = "<p>Message queued. You will receive it in a few seconds."
         mock_get.return_value = mock_resp
 
-        result = send_whatsapp_message("(67) 99247-1379", "Mensagem de teste", apikey="123456")
+        result = send_whatsapp_message("(67) 99999-0001", "Mensagem de teste", apikey="123456")
         self.assertTrue(result)
 
     @patch("requests.get")
@@ -187,7 +187,7 @@ class TestSendWhatsAppMessage(unittest.TestCase):
         mock_resp.text = "ERROR: There is currently a limit of 48 messages per 240 minutes."
         mock_get.return_value = mock_resp
 
-        result = send_whatsapp_message("(67) 99247-1379", "Mensagem de teste", apikey="123456")
+        result = send_whatsapp_message("(67) 99999-0001", "Mensagem de teste", apikey="123456")
         self.assertFalse(result)
 
     def test_send_missing_phone(self):
@@ -195,7 +195,7 @@ class TestSendWhatsAppMessage(unittest.TestCase):
 
     @patch.dict("os.environ", {}, clear=True)
     def test_send_missing_apikey(self):
-        self.assertFalse(send_whatsapp_message("(67) 99247-1379", "Texto", apikey=""))
+        self.assertFalse(send_whatsapp_message("(67) 99999-0001", "Texto", apikey=""))
 
     @patch("requests.get")
     def test_send_invalid_apikey_error(self, mock_get):
@@ -204,7 +204,7 @@ class TestSendWhatsAppMessage(unittest.TestCase):
         mock_resp.text = "APIKey is invalid"
         mock_get.return_value = mock_resp
 
-        result = send_whatsapp_message("(67) 99247-1379", "Teste", apikey="errada")
+        result = send_whatsapp_message("(67) 99999-0001", "Teste", apikey="errada")
         self.assertFalse(result)
 
 
@@ -218,7 +218,7 @@ class TestTestCallMeBotConnection(unittest.TestCase):
         mock_resp.text = "<p>Message queued. You will receive it in a few seconds."
         mock_get.return_value = mock_resp
 
-        ok, msg = api_test_callmebot("(67) 99247-1379", "3587903")
+        ok, msg = api_test_callmebot("(67) 99999-0001", "1000001")
         self.assertTrue(ok)
         self.assertIn("sucesso", msg.lower())
 
@@ -229,7 +229,7 @@ class TestTestCallMeBotConnection(unittest.TestCase):
         mock_resp.text = "<p>APIKey is invalid. Please create a new one."
         mock_get.return_value = mock_resp
 
-        ok, msg = api_test_callmebot("(67) 99247-1379", "errada")
+        ok, msg = api_test_callmebot("(67) 99999-0001", "errada")
         self.assertFalse(ok)
         self.assertIn("inválida", msg.lower())
 

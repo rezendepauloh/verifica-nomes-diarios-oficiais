@@ -5,8 +5,10 @@ services:
       dockerfile: Dockerfile
     container_name: verifica-diarios-app
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
-      - "${PORT}:${PORT}"
+      - "127.0.0.1:${PORT:?Variavel PORT obrigatoria no .env}:${PORT:?Variavel PORT obrigatoria no .env}"
     env_file:
       - .env
     volumes:
@@ -18,13 +20,11 @@ services:
       - ./uploads:/app/uploads
     environment:
       - TZ=${TZ:-America/Campo_Grande}
-      - PORT=${PORT}
-      - STREAMLIT_SERVER_PORT=${PORT}
+      - PORT=${PORT:?Variavel PORT obrigatoria no .env}
+      - STREAMLIT_SERVER_PORT=${PORT:?Variavel PORT obrigatoria no .env}
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
       - STREAMLIT_SERVER_HEADLESS=true
       - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
       - STREAMLIT_SERVER_ENABLE_STATIC_SERVING=true
       - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-
-

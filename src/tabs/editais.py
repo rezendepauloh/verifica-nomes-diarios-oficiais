@@ -7,6 +7,7 @@ Aba Streamlit para gerenciamento de Editais e Concursos:
 - Visualizador do PDF do Edital embutido
 """
 import base64
+import html
 from typing import Optional
 from pathlib import Path
 from datetime import datetime
@@ -14,6 +15,7 @@ import streamlit as st
 import pandas as pd
 
 from src.config import EDITAIS_DIR, ROOT_DIR, get_edital_folder
+from src.security import sanitize_filename, is_valid_pdf_bytes, resolve_safe_path
 from src.editais.pdf_parser import resolve_pdf_path
 from src.database import (
     save_edital,
@@ -272,13 +274,22 @@ def render_editais_tab():
             cargos_detectados = []
             if uploaded_files:
                 first_file = uploaded_files[0]
-                temp_preview_path = EDITAIS_DIR / f"temp_{first_file.name.replace(' ', '_')}"
-                with open(temp_preview_path, "wb") as f:
-                    f.write(first_file.getbuffer())
+                safe_preview_name = f"temp_{sanitize_filename(first_file.name, default_ext='.pdf')}"
+                temp_preview_path = resolve_safe_path(EDITAIS_DIR, safe_preview_name)
                 try:
-                    cargos_detectados = discover_cargos_in_pdf(str(temp_preview_path))
+                    raw_buf = bytes(first_file.getbuffer())
+                    if is_valid_pdf_bytes(raw_buf):
+                        with open(temp_preview_path, "wb") as f:
+                            f.write(raw_buf)
+                        cargos_detectados = discover_cargos_in_pdf(str(temp_preview_path))
                 except Exception:
                     cargos_detectados = []
+                finally:
+                    try:
+                        if temp_preview_path.exists():
+                            temp_preview_path.unlink()
+                    except Exception:
+                        pass
 
             if cargos_detectados:
                 cargo_opcao = st.selectbox(
@@ -295,12 +306,17 @@ def render_editais_tab():
                 elif not uploaded_files:
                     st.error("Faça o upload de ao menos um arquivo PDF do edital.")
                 else:
-                    concurso_folder = get_edital_folder(titulo=novo_titulo, ano=novo_ano, link_oficial=novo_link)
                     primary_file = uploaded_files[0]
-                    safe_primary_name = f"{int(datetime.now().timestamp())}_{primary_file.name.replace(' ', '_')}"
-                    dest_path = concurso_folder / safe_primary_name
+                    primary_bytes = bytes(primary_file.getbuffer())
+                    if not is_valid_pdf_bytes(primary_bytes):
+                        st.error("Arquivo inválido: o documento enviado não possui cabeçalho PDF válido (%PDF-).")
+                        st.stop()
+                    concurso_folder = get_edital_folder(titulo=novo_titulo, ano=novo_ano, link_oficial=novo_link)
+                    clean_primary = sanitize_filename(primary_file.name, default_ext=".pdf")
+                    safe_primary_name = f"{int(datetime.now().timestamp())}_{clean_primary}"
+                    dest_path = resolve_safe_path(concurso_folder, safe_primary_name)
                     with open(dest_path, "wb") as f:
-                        f.write(primary_file.getbuffer())
+                        f.write(primary_bytes)
 
                     info = inspect_pdf(str(dest_path))
 
@@ -310,7 +326,7 @@ def render_editais_tab():
                         banca=novo_banca,
                         ano=novo_ano,
                         interessado=novo_interessado,
-                        arquivo_nome=primary_file.name,
+                        arquivo_nome=clean_primary,
                         arquivo_path=str(dest_path),
                         link_oficial=novo_link,
                         link_inscricao=novo_link_inscricao,
@@ -321,16 +337,20 @@ def render_editais_tab():
                     outros_salvos = 0
                     if len(uploaded_files) > 1:
                         for idx_extra, extra_file in enumerate(uploaded_files[1:], 1):
-                            safe_extra_name = f"{int(datetime.now().timestamp())}_{idx_extra}_{extra_file.name.replace(' ', '_')}"
-                            dest_extra_path = concurso_folder / safe_extra_name
+                            extra_bytes = bytes(extra_file.getbuffer())
+                            if not is_valid_pdf_bytes(extra_bytes):
+                                continue
+                            clean_extra = sanitize_filename(extra_file.name, default_ext=".pdf")
+                            safe_extra_name = f"{int(datetime.now().timestamp())}_{idx_extra}_{clean_extra}"
+                            dest_extra_path = resolve_safe_path(concurso_folder, safe_extra_name)
                             with open(dest_extra_path, "wb") as f_ex:
-                                f_ex.write(extra_file.getbuffer())
+                                f_ex.write(extra_bytes)
 
                             save_edital_documento(
                                 edital_id=edital_id,
-                                titulo=extra_file.name.replace(".pdf", "").replace(".PDF", ""),
+                                titulo=clean_extra.replace(".pdf", "").replace(".PDF", ""),
                                 tipo="Edital Específico / Anexo",
-                                arquivo_nome=extra_file.name,
+                                arquivo_nome=clean_extra,
                                 arquivo_path=str(dest_extra_path),
                                 data_publicacao=datetime.now().strftime("%d/%m/%Y"),
                                 url_origem="",
@@ -467,32 +487,32 @@ def render_editais_tab():
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">Concurso / Órgão</div>
-            <div class="metric-value" style="font-size: 20px;">{edital_atual['titulo']}</div>
-            <div class="metric-subtext">Ano {edital_atual['ano']}</div>
+            <div class="metric-value" style="font-size: 20px;">{html.escape(str(edital_atual['titulo']))}</div>
+            <div class="metric-subtext">Ano {html.escape(str(edital_atual['ano']))}</div>
         </div>
         """, unsafe_allow_html=True)
     with col_d2:
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">Cargo / Especialidade</div>
-            <div class="metric-value" style="font-size: 18px;">{edital_atual['cargo'] or 'Geral'}</div>
-            <div class="metric-subtext">{edital_atual['banca'] or 'Banca N/I'}</div>
+            <div class="metric-value" style="font-size: 18px;">{html.escape(str(edital_atual['cargo'] or 'Geral'))}</div>
+            <div class="metric-subtext">{html.escape(str(edital_atual['banca'] or 'Banca N/I'))}</div>
         </div>
         """, unsafe_allow_html=True)
     with col_d3:
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">Candidato(a)</div>
-            <div class="metric-value" style="font-size: 20px; color: #3b82f6;">{edital_atual['interessado']}</div>
-            <div class="metric-subtext">Status: {edital_atual['status']}</div>
+            <div class="metric-value" style="font-size: 20px; color: #3b82f6;">{html.escape(str(edital_atual['interessado']))}</div>
+            <div class="metric-subtext">Status: {html.escape(str(edital_atual['status']))}</div>
         </div>
         """, unsafe_allow_html=True)
     with col_d4:
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">Documento PDF</div>
-            <div class="metric-value" style="font-size: 20px;">{edital_atual['total_paginas']} págs</div>
-            <div class="metric-subtext">{edital_atual['arquivo_nome'][:25]}...</div>
+            <div class="metric-value" style="font-size: 20px;">{html.escape(str(edital_atual['total_paginas']))} págs</div>
+            <div class="metric-subtext">{html.escape(str(edital_atual['arquivo_nome'][:25]))}...</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -546,19 +566,18 @@ def render_editais_tab():
                         titulo=ev_p["titulo"],
                         data_ev=ev_p["data_inicio"],
                         descricao=desc_gcal,
-                        convidado="kamila_arteman@hotmail.com"
                     )
                     rotulo = "🗓️ Fim" if ev_p["is_fim"] else ("🗓️ Início" if len(ev_pontuais) > 1 else "🗓️ Adicionar")
-                    links_gcal.append(f'<a href="{url_gcal}" target="_blank" style="text-decoration: none; background: #1e293b; color: #60a5fa; padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 12px; margin-right: 4px; display: inline-block;">{rotulo}</a>')
+                    links_gcal.append(f'<a href="{html.escape(url_gcal, quote=True)}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; background: #1e293b; color: #60a5fa; padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 12px; margin-right: 4px; display: inline-block;">{rotulo}</a>')
 
                 acoes_html = " ".join(links_gcal)
 
                 rows_display.append({
-                    "Atividade / Etapa": ev_nome,
-                    "Data / Prazo": dt_str,
-                    "Situação": badge_situacao,
+                    "Atividade / Etapa": html.escape(str(ev_nome)),
+                    "Data / Prazo": html.escape(str(dt_str)),
+                    "Situação": html.escape(str(badge_situacao)),
                     "Google Agenda (1-Click)": acoes_html,
-                    "Detalhes": obs
+                    "Detalhes": html.escape(str(obs))
                 })
 
             # Montagem segura do HTML em linha única por elemento sem quebras de linha Markdown
@@ -993,24 +1012,29 @@ def render_editais_tab():
                 if not uploaded_retif:
                     st.error("Faça o upload do arquivo PDF da retificação.")
                 else:
+                    retif_bytes = bytes(uploaded_retif.getbuffer())
+                    if not is_valid_pdf_bytes(retif_bytes):
+                        st.error("Arquivo inválido: o documento de retificação não possui cabeçalho PDF válido (%PDF-).")
+                        st.stop()
                     concurso_folder = get_edital_folder(
                         titulo=edital_atual.get("titulo", ""),
                         ano=edital_atual.get("ano", 2026),
                         link_oficial=edital_atual.get("link_oficial", "")
                     )
-                    safe_name = f"retificacao_{int(datetime.now().timestamp())}_{uploaded_retif.name.replace(' ', '_')}"
-                    dest_path = concurso_folder / safe_name
+                    clean_retif_name = sanitize_filename(uploaded_retif.name, default_ext=".pdf")
+                    safe_name = f"retificacao_{int(datetime.now().timestamp())}_{clean_retif_name}"
+                    dest_path = resolve_safe_path(concurso_folder, safe_name)
                     with open(dest_path, "wb") as f:
-                        f.write(uploaded_retif.getbuffer())
+                        f.write(retif_bytes)
 
-                    tit = retif_titulo.strip() or f"Retificação - {uploaded_retif.name}"
+                    tit = retif_titulo.strip() or f"Retificação - {clean_retif_name}"
                     with st.spinner("Processando retificação e mesclando alterações com o cronograma..."):
                         res = process_retificacao_pdf(selected_edital_id, str(dest_path), tit)
                         save_edital_documento(
                             edital_id=selected_edital_id,
                             titulo=tit,
                             tipo=retif_tipo,
-                            arquivo_nome=uploaded_retif.name,
+                            arquivo_nome=clean_retif_name,
                             arquivo_path=str(dest_path),
                             data_publicacao=datetime.now().strftime("%d/%m/%Y"),
                             processado=1,
@@ -1030,11 +1054,11 @@ def render_editais_tab():
                 st.markdown(f"""
                 <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 10px 14px; margin-bottom: 8px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 600; color: #f3f4f6;">{doc['titulo']}</span>
-                        <span style="font-size: 12px; color: #94a3b8; background: rgba(59,130,246,0.15); padding: 2px 8px; border-radius: 4px;">{doc['tipo']}</span>
+                        <span style="font-weight: 600; color: #f3f4f6;">{html.escape(str(doc['titulo']))}</span>
+                        <span style="font-size: 12px; color: #94a3b8; background: rgba(59,130,246,0.15); padding: 2px 8px; border-radius: 4px;">{html.escape(str(doc['tipo']))}</span>
                     </div>
                     <div style="font-size: 12.5px; color: #94a3b8; margin-top: 4px;">
-                        Status: {'✅ Processado' if doc['processado'] else '⏳ Pendente'} • Resumo: {doc.get('resumo') or 'Sem resumo'}
+                        Status: {'✅ Processado' if doc['processado'] else '⏳ Pendente'} • Resumo: {html.escape(str(doc.get('resumo') or 'Sem resumo'))}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)

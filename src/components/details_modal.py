@@ -2,6 +2,7 @@
 """
 Modal / Diálogo com detalhes completos e gestão de status da ocorrência.
 """
+import html
 import re
 import pandas as pd
 import streamlit as st
@@ -40,8 +41,8 @@ def show_occurrence_details(row):
     st.markdown("---")
     st.markdown("### 📝 Trecho / Contexto Encontrado")
     
-    contexto = row['Contexto / Trecho']
-    nome = row['Nome']
+    contexto = html.escape(str(row['Contexto / Trecho'] or ''))
+    nome = html.escape(str(row['Nome'] or ''))
     
     pattern = get_accent_insensitive_pattern(nome)
     contexto_html = re.sub(pattern, highlight_match, contexto, flags=re.IGNORECASE)

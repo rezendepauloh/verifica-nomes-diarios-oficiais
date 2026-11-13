@@ -8,12 +8,22 @@ de postMessage para carregar documentos Base64 do Streamlit.
 
 import io
 import os
+import sys
 import urllib.request
 import zipfile
+from pathlib import Path
+
+# Garante que a raiz do projeto esteja no sys.path para importar src.security
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from src.security import safe_extract_zip, MAX_ZIP_UNCOMPRESSED_BYTES
 
 PDFJS_VERSION = "4.5.136"
 PDFJS_URL = f"https://github.com/mozilla/pdf.js/releases/download/v{PDFJS_VERSION}/pdfjs-{PDFJS_VERSION}-dist.zip"
 TARGET_DIR = os.environ.get("PDFJS_TARGET_DIR") or os.path.join(os.getcwd(), "static", "pdfjs")
+MAX_DOWNLOAD_PDFJS_BYTES = 50 * 1024 * 1024  # 50 MB
 
 
 def setup_pdfjs():
@@ -27,11 +37,12 @@ def setup_pdfjs():
 
     req = urllib.request.Request(PDFJS_URL, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=60) as resp:
-        content = resp.read()
+        content = resp.read(MAX_DOWNLOAD_PDFJS_BYTES + 1)
+        if len(content) > MAX_DOWNLOAD_PDFJS_BYTES:
+            raise ValueError("Bundle PDF.js excedeu o limite máximo de download seguro (50 MB).")
 
-    print(f"📦 Descompactando {len(content)} bytes em {TARGET_DIR}...")
-    with zipfile.ZipFile(io.BytesIO(content)) as z:
-        z.extractall(TARGET_DIR)
+    print(f"📦 Descompactando de forma segura ({len(content)} bytes) em {TARGET_DIR}...")
+    safe_extract_zip(content, Path(TARGET_DIR), max_total_bytes=MAX_ZIP_UNCOMPRESSED_BYTES)
 
     # 1. Patch no viewer.mjs: Remove o arquivo default de teste (compressed.tracemonkey-pldi-09.pdf)
     mjs_path = os.path.join(TARGET_DIR, "web", "viewer.mjs")

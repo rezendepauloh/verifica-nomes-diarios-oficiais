@@ -45,22 +45,23 @@ O repositório conta com uma central de documentação rica e modular no diretó
 ├── Docs/                       # Central unificada de documentação técnica e guias
 ├── 00-iniciar.sh               # CLI unificado para Linux/WSL (Docker, Testes e Homelab)
 ├── 00-iniciar.cmd              # Script de inicialização rápida para Windows
-├── Dockerfile                  # Imagem Docker otimizada baseada em Python 3.12-slim
-├── docker-compose.yml          # Orquestrador local com volumes e live-reload (porta 8504)
+├── Dockerfile                  # Imagem Docker endurecida (non-root appuser, Fail-Closed PORT)
+├── docker-compose.yml          # Orquestrador local com bind restrito (127.0.0.1:${PORT}:${PORT})
 ├── data/
-│   └── results.db              # Banco de dados SQLite persistente
+│   └── results.db              # Banco de dados SQLite persistente (permissão 0600)
 ├── uploads/
 │   └── editais/
 │       └── {slug_concurso}/    # Editais originais e retificações organizados por concurso
 ├── assets/
 │   └── css/styles.css          # Folhas de estilo personalizadas (Tema escuro)
-├── tests/                      # Suíte com 58 testes automatizados (pytest)
+├── tests/                      # Suíte de testes automatizados (pytest + auditoria contínua SecOps)
 │   ├── conftest.py             # Fixtures e isolamento de banco temporário
 │   ├── run_all.py              # Runner de testes standalone colorido
-│   ├── unit/                   # Testes unitários (editais, banco, scrapers, scheduler)
+│   ├── unit/                   # Testes unitários (segurança, editais, banco, scrapers, scheduler)
 │   └── integration/            # Testes de integração de fluxo
 └── src/
-    ├── config.py               # Constantes, timezone, slugs e diretórios
+    ├── config.py               # Constantes, timezone, slugs validados e diretórios
+    ├── security.py             # Núcleo SecOps (Fail-Closed, SSRF, Zip-Bomb, Path Traversal, Auth/RateLimit)
     ├── logger.py               # Logging centralizado com loguru
     ├── terminal.py             # Utilitários de saída colorida ANSI
     ├── database/               # Camada SQLite (CRUD de ocorrências, nomes e editais)
@@ -86,16 +87,26 @@ git clone https://github.com/rezendepauloh/verifica-nomes-diarios-oficiais
 cd verifica-nomes-diarios-oficiais
 ```
 
-### 2. Configurar o `.env`
+### 2. Configurar o `.env` (com permissões restritas)
 ```bash
 cp .env-example .env
+chmod 600 .env
 ```
 
 ### 3. Iniciar com Docker Compose
 ```bash
 docker compose up -d --build
 ```
-Acesse o painel web em: `http://localhost:8504`
+Acesse o painel web em: `http://127.0.0.1:8504` (ou `http://localhost:8504`).
+
+---
+
+## 🔒 Padrão de Segurança e Hardening (SecOps)
+
+- **Zero Secrets/PII em Arquivos Rastreados**: Chaves CallMeBot, chaves Gemini, telefones pessoais, e-mails, IDs de agenda e IPs de Homelab residem exclusivamente no `.env` (`chmod 600`), validado continuamente por `tests/unit/test_security.py`.
+- **Travas Fail-Closed**: `Dockerfile`, `docker-compose.yml`, `00-iniciar.sh` e `src/security.py` recusam inicialização ou deploy caso variáveis obrigatórias (`PORT`, credenciais quando `APP_AUTH_REQUIRED=true` ou variáveis `HOMELAB_*`) estejam ausentes.
+- **Bind Local Restrito & Hardening de Container**: Portas mapeadas exclusivamente em `127.0.0.1:${PORT}:${PORT}`, execução sob usuário não-privilegiado (`appuser`) e `security_opt: ["no-new-privileges:true"]`.
+- **Proteções WebUI & Parsers**: Proteção CSRF/XSRF e CORS ativas (`.streamlit/config.toml`), validação de `Host` header, Rate Limiting contra força bruta (`HTTP 429`), guarda anti-SSRF, anti-Path Traversal e anti-Zip-Bomb/Zip-Slip.
 
 ### 4. Executar os Testes Automatizados
 ```bash

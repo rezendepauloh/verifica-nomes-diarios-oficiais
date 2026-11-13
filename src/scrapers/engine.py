@@ -10,14 +10,21 @@ import os
 from dotenv import load_dotenv
 import urllib3
 
-# Desativa avisos de certificado SSL autoassinado/inválido
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 # Carrega as variáveis de ambiente
 load_dotenv()
 from src.logger import logger
 from src.database import is_url_processed, mark_url_processed
 from src.terminal import print_header, CYAN, GREEN, YELLOW
+from src.security import (
+    validate_slug,
+    is_safe_external_url,
+    safe_read_zip_member,
+)
+
+# SSL verify configurável via variável de ambiente (True por padrão, exceto quando ALLOW_INSECURE_SSL=true)
+SSL_VERIFY_DEFAULT = os.getenv("ALLOW_INSECURE_SSL", "false").strip().lower() not in ("1", "true", "yes")
+if not SSL_VERIFY_DEFAULT:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Configurações de headers para evitar bloqueios
 HEADERS = {
@@ -29,9 +36,13 @@ import time
 def safe_download(url: str, timeout: int = 15, verify: bool = True, pause: float = 0.3):
     """
     Realiza download seguro de arquivos com:
-    1. Normalização e codificação de caracteres acentuados e espaços no path da URL.
-    2. Intervalo de cortesia (rate limiting) para evitar bloqueios por excesso de requisições.
+    1. Validação anti-SSRF (bloqueio de esquemas não-HTTP e IPs de loopback/link-local/privados).
+    2. Normalização e codificação de caracteres acentuados e espaços no path da URL.
+    3. Intervalo de cortesia (rate limiting) para evitar bloqueios por excesso de requisições.
     """
+    if not is_safe_external_url(url):
+        raise ValueError(f"URL bloqueada por política anti-SSRF: {url}")
+
     if pause > 0:
         time.sleep(pause)
         
@@ -57,12 +68,14 @@ def clean_text(text):
 def get_local_file_path(source_slug, url, custom_filename=None):
     """
     Retorna o caminho local para cachear o arquivo de edital/documento.
+    Valida `source_slug` e sanitiza o nome do arquivo contra Path Traversal.
     Cria os diretórios necessários sob uploads/{source_slug}.
     """
     import hashlib
     
+    safe_slug = validate_slug(source_slug)
     # Cria a pasta de uploads para o slug específico
-    dest_dir = os.path.join("uploads", source_slug)
+    dest_dir = os.path.join("uploads", safe_slug)
     os.makedirs(dest_dir, exist_ok=True)
     
     # Extrai o nome do arquivo a partir da URL
@@ -81,22 +94,22 @@ def get_local_file_path(source_slug, url, custom_filename=None):
     if custom_filename:
         # Remove prefixos indesejados como 'cloud_download' caso passem
         clean_name = re.sub(r'^(cloud_download|download)\s*', '', custom_filename, flags=re.I).strip()
-        clean_name = clean_name.replace('–', '-').replace('—', '-')
-        # Previne caracteres inválidos no sistema de arquivos para o nome customizado
+        clean_name = clean_name.replace('–', '-').replace('—', '-').replace('..', '_')
+        # Previne caracteres inválidos e separadores de diretório no sistema de arquivos
         filename = re.sub(r'[\\/*?:"<>|]', '_', clean_name)
         # Normaliza múltiplos sublinhados ou espaços
-        filename = re.sub(r'\s+', ' ', filename).strip()
+        filename = re.sub(r'\s+', ' ', filename).strip(' ._')
         # Se não terminar com a extensão correta, adiciona ela
         if not filename.lower().endswith(ext.lower()):
             filename = f"{filename}{ext}"
     else:
-        filename = url_filename
-        # Se não houver nome de arquivo válido ou extensão, gera usando hash md5
+        filename = url_filename.replace("..", "_")
+        # Se não houver nome de arquivo válido ou extensão, gera usando hash md5 não-criptográfico
         if not filename or "." not in filename:
-            url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
+            url_hash = hashlib.md5(url.encode("utf-8"), usedforsecurity=False).hexdigest()
             filename = f"{url_hash}{ext}"
         else:
-            filename = re.sub(r'[\\/*?:"<>|]', '_', filename)
+            filename = re.sub(r'[\\/*?:"<>|]', '_', filename).strip(' ._')
         
     return os.path.join(dest_dir, filename)
 
@@ -443,9 +456,9 @@ def search_sanesul(name):
                             logger.error(f"Erro ao ler PDF do Sanesul ({doc_url}): {pdf_err}")
                     elif doc_url.lower().endswith(".docx"):
                         try:
-                            with zipfile.ZipFile(io.BytesIO(file_content)) as z:
-                                xml_content = z.read("word/document.xml").decode("utf-8")
-                                text_content = re.sub(r'<[^>]+>', '', xml_content)
+                            xml_bytes = safe_read_zip_member(file_content, "word/document.xml")
+                            xml_content = xml_bytes.decode("utf-8", errors="replace")
+                            text_content = re.sub(r'<[^>]+>', '', xml_content)
                         except Exception as docx_err:
                             logger.error(f"Erro ao ler DOCX do Sanesul ({doc_url}): {docx_err}")
                     
@@ -501,7 +514,7 @@ def search_msgas(name):
     try:
         # 1. Recupera a página principal (usa cache em memória se disponível)
         if _msgas_html_cache is None:
-            response = requests.get(url, headers=HEADERS, timeout=15, verify=False)
+            response = requests.get(url, headers=HEADERS, timeout=15, verify=SSL_VERIFY_DEFAULT)
             if response.status_code == 200:
                 _msgas_html_cache = response.content
             else:
@@ -547,7 +560,7 @@ def search_msgas(name):
                 if file_content is None:
                     logger.info(f"MS Gás: Baixando e analisando novo arquivo: {doc_title}")
                     try:
-                        resp = safe_download(doc_url, timeout=15, verify=False)
+                        resp = safe_download(doc_url, timeout=15, verify=SSL_VERIFY_DEFAULT)
                         if resp.status_code == 200:
                             file_content = resp.content
                             try:
@@ -574,9 +587,9 @@ def search_msgas(name):
                             logger.error(f"Erro ao ler PDF da MS Gás ({doc_url}): {pdf_err}")
                     elif doc_url.lower().endswith(".docx"):
                         try:
-                            with zipfile.ZipFile(io.BytesIO(file_content)) as z:
-                                xml_content = z.read("word/document.xml").decode("utf-8")
-                                text_content = re.sub(r'<[^>]+>', '', xml_content)
+                            xml_bytes = safe_read_zip_member(file_content, "word/document.xml")
+                            xml_content = xml_bytes.decode("utf-8", errors="replace")
+                            text_content = re.sub(r'<[^>]+>', '', xml_content)
                         except Exception as docx_err:
                             logger.error(f"Erro ao ler DOCX da MS Gás ({doc_url}): {docx_err}")
                     
@@ -937,8 +950,8 @@ def search_mpms(name: str):
                 "atocod": "",
                 "pagina": pagina
             }
-            # timeout generoso e verify=False defensivo contra proxies corporativos
-            response = requests.get(api_endpoint, params=params, headers=HEADERS, timeout=20, verify=False)
+            # timeout generoso e validação SSL configurável
+            response = requests.get(api_endpoint, params=params, headers=HEADERS, timeout=20, verify=SSL_VERIFY_DEFAULT)
             
             if response.status_code != 200:
                 logger.warning(f"MPMS: Resposta HTTP {response.status_code} na página {pagina} para {name}")

@@ -133,12 +133,12 @@ class TestEditaisDatabase:
             edital_id=edital_id,
             tipo_alerta="amanha",
             data_alvo="2026-11-12",
-            phone="(67) 99853-8804"
+            phone="(67) 99999-0002"
         )
         hist = get_cronograma_alert_history(limit=10)
         assert len(hist) >= 1
         assert hist[0]["tipo_alerta"] == "amanha"
-        assert hist[0]["phone"] == "(67) 99853-8804"
+        assert hist[0]["phone"] == "(67) 99999-0002"
         assert hist[0]["edital_titulo"] == "Concurso Teste Retificações"
 
         # Testa URLs cebraspe e fapec
@@ -418,9 +418,9 @@ class TestCalendarUtils:
             "data_inicio": "10/10/2026 a 16/10/2026",
             "observacao": "Via internet"
         }]
-        ics = generate_ics_calendar("CGU", items, link_oficial="https://cebraspe.org.br", convidado="kamila_arteman@hotmail.com")
+        ics = generate_ics_calendar("CGU", items, link_oficial="https://cebraspe.org.br", convidado="convidado@exemplo.com")
         assert "BEGIN:VCALENDAR" in ics
         assert "BEGIN:VEVENT" in ics
         assert "[CGU]" in ics
-        assert "kamila_arteman@hotmail.com" in ics
+        assert "convidado@exemplo.com" in ics
         assert "END:VCALENDAR" in ics

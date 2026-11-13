@@ -9,15 +9,33 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Environment variables
+# Environment variables & Secrets (Fail-Closed / Zero Leak)
 .env
+.env.*
+!.env-example
+config.env
+*.env
+secrets/
+credentials.json
+*.pem
+*.key
+*.p12
+*.pfx
 
-# Local database
+# Local database & backups
 results.db
 *.db
 *.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+*.sql
+*.dump
 data/*.db
 data/*.sqlite
+data/*.sqlite3
+data/*.db-*
 
 # VS Code / IDE configs
 .vscode/
@@ -26,14 +44,12 @@ data/*.sqlite
 .ipynb_checkpoints/
 .antigravity/
 
-# Credentials and sensitive files
-credentials.json
-
 # Build and temporary files
 dist/
 build/
 *.tmp
 *.bak
+*.swp
 *.docker_build_hash
 
 # Directories

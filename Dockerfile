@@ -27,6 +27,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Prepara e instala o Mozilla PDF.js viewer oficial diretamente na imagem
+COPY src/security.py /app/src/security.py
 COPY src/setup_pdfjs.py /app/src/setup_pdfjs.py
 ENV PDFJS_TARGET_DIR=/app/static/pdfjs
 RUN python3 /app/src/setup_pdfjs.py
@@ -34,10 +35,9 @@ RUN python3 /app/src/setup_pdfjs.py
 # Copia os arquivos do projeto
 COPY . .
 
-# Healthcheck usando a variável de ambiente PORT vinda do runtime (.env)
+# Healthcheck usando a variável de ambiente PORT vinda do runtime (.env) com trava Fail-Closed
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl --fail http://localhost:${PORT}/_stcore/health || exit 1
+    CMD [ -n "${PORT}" ] && curl --fail http://127.0.0.1:${PORT}/_stcore/health || exit 1
 
-# Inicia a aplicação Streamlit usando estritamente a variável PORT
-CMD ["sh", "-c", "streamlit run app.py --server.port ${PORT} --server.address 0.0.0.0"]
-
+# Inicia a aplicação Streamlit com verificação Fail-Closed obrigatória da variável PORT
+CMD ["sh", "-c", "[ -n \"${PORT}\" ] || { echo 'FATAL [Fail-Closed]: Variavel PORT ausente ou vazia!' >&2; exit 1; }; exec streamlit run app.py --server.port \"${PORT}\" --server.address 0.0.0.0"]

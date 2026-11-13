@@ -4,33 +4,68 @@ Módulo de parsing e manipulação de arquivos PDF para editais.
 Extrai texto por página, tabelas e metadados usando pdfplumber.
 """
 from pathlib import Path
+import tempfile
 from typing import Dict, List, Any, Optional
 import pdfplumber
 from src.logger import logger
-from src.config import ROOT_DIR, EDITAIS_DIR
+from src.config import ROOT_DIR, UPLOADS_DIR, EDITAIS_DIR
+from src.security import sanitize_filename
+
+def _is_within_allowed_roots(candidate: Path) -> bool:
+    """Garante que o arquivo PDF resolvido esteja restrito a diretórios permitidos (prevenindo LFI/Path Traversal)."""
+    try:
+        resolved = candidate.resolve()
+    except Exception:
+        return False
+
+    allowed_roots = [
+        EDITAIS_DIR.resolve(),
+        UPLOADS_DIR.resolve(),
+        ROOT_DIR.resolve(),
+        Path(tempfile.gettempdir()).resolve(),
+    ]
+    for root in allowed_roots:
+        try:
+            resolved.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
 
 def resolve_pdf_path(path_str: str) -> Optional[Path]:
-    """Resolve o arquivo PDF lidando com caminhos relativos e absolutos de containers ou host, inclusive em subpastas."""
-    if not path_str:
+    """Resolve o arquivo PDF lidando com caminhos relativos e absolutos de containers ou host, bloqueando Path Traversal."""
+    if not path_str or "\x00" in str(path_str):
         return None
-    p = Path(path_str)
-    if p.exists():
+    raw_str = str(path_str).strip()
+    p = Path(raw_str)
+
+    # Rejeita tentativas explícitas de subida de diretório (..)
+    if ".." in p.parts:
+        logger.warning(f"Tentativa de Path Traversal bloqueada em resolve_pdf_path: {path_str}")
+        return None
+
+    if p.exists() and p.is_file() and _is_within_allowed_roots(p):
         return p
+
     # Tenta resolver relativo à raiz do projeto
-    rel_p = ROOT_DIR / path_str
-    if rel_p.exists():
-        return rel_p
-    # Tenta encontrar na pasta raiz de editais
-    edital_p = EDITAIS_DIR / p.name
-    if edital_p.exists():
-        return edital_p
-    # Busca recursiva em subpastas de uploads/editais/
-    try:
-        matches = list(EDITAIS_DIR.glob(f"**/{p.name}"))
-        if matches:
-            return matches[0]
-    except Exception:
-        pass
+    if not p.is_absolute():
+        rel_p = ROOT_DIR / p
+        if rel_p.exists() and rel_p.is_file() and _is_within_allowed_roots(rel_p):
+            return rel_p
+
+    # Tenta encontrar na pasta raiz de editais usando apenas o basename sanitizado
+    safe_base = sanitize_filename(p.name, default_ext=".pdf") if p.name else ""
+    if safe_base:
+        edital_p = EDITAIS_DIR / safe_base
+        if edital_p.exists() and edital_p.is_file() and _is_within_allowed_roots(edital_p):
+            return edital_p
+        # Busca recursiva em subpastas de uploads/editais/
+        try:
+            matches = [m for m in EDITAIS_DIR.rglob(p.name) if m.is_file() and _is_within_allowed_roots(m)]
+            if matches:
+                return matches[0]
+        except Exception:
+            pass
     return None
 
 def inspect_pdf(pdf_path: str) -> Dict[str, Any]:

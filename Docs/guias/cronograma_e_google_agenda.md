@@ -55,7 +55,7 @@ O sistema possui um robô inteligente que monitora os prazos do cronograma diari
 - **Segmentação por Interessado**:
   - Respeita o campo de interessado do edital (*Paulo*, *Kamila* ou *Ambos*).
 - **Links Diretos na Mensagem**:
-  - Envia tanto o link de rede local (`https://diarios.pk.local/`) quanto o link externo seguro via zrok (`https://diarios-paulo.shares.zrok.io/`) para consulta rápida.
+  - Envia os links configurados em `APP_LOCAL_URL` e `APP_PUBLIC_URL` no `.env` para consulta rápida.
 - **Prevenção de Duplicidade (Idempotência)**:
   - Registra o envio na tabela `cronograma_alert_history` do SQLite, garantindo que você nunca receba o mesmo alerta duas vezes no mesmo dia.
 

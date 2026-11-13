@@ -26,6 +26,7 @@ O **Verifica Nomes em Diários Oficiais & Central de Editais de Concursos** é u
 ├── app.py                      # Ponto de entrada Streamlit (navegação entre abas)
 ├── src/
 │   ├── config.py               # Constantes globais, caminhos (DB_PATH, EDITAIS_DIR) e variáveis de ambiente
+│   ├── security.py             # Guardas Fail-Closed, anti-SSRF, anti-Path Traversal, anti-Zip-Bomb, Auth e Rate Limiting
 │   ├── logger.py               # Configuração unificada do loguru com logs coloridos e rotação
 │   ├── terminal.py             # Helpers de saída colorida ANSI para o terminal
 │   ├── components/             # Componentes modulares reutilizáveis de interface
@@ -57,13 +58,14 @@ O **Verifica Nomes em Diários Oficiais & Central de Editais de Concursos** é u
 │   ├── conftest.py             # Fixtures compartilhadas e setup de ambiente
 │   ├── test_helpers.py         # Mocks e utilitários de asserção
 │   ├── run_all.py              # Runner de testes standalone
-│   ├── unit/                   # Testes unitários de banco, extratores, scrapers e agendamento
+│   ├── unit/                   # Testes unitários de banco, extratores, scrapers, segurança e agendamento
 │   │   ├── test_database.py
 │   │   ├── test_editais.py     # Testes de CRUD, retificações, parsers de bancas e .ics
 │   │   ├── test_notifications.py
 │   │   ├── test_pagination.py
 │   │   ├── test_scheduler.py
-│   │   └── test_scrapers.py
+│   │   ├── test_scrapers.py
+│   │   └── test_security.py    # Auditoria contínua de segredos git, Fail-Closed, permissões e Auth/SSRF/XSS
 │   └── integration/            # Testes de integração end-to-end
 │       └── test_scan_flow.py
 ├── uploads/                    # Diretório de persistência de PDFs originais e retificações
@@ -95,6 +97,9 @@ O **Verifica Nomes em Diários Oficiais & Central de Editais de Concursos** é u
    - Números nos cards, tabelas e gráficos devem usar vírgula como separador decimal e ponto como separador de milhar.
 6. **Comunicação Objetiva e Foco Técnico**:
    - Vá direto ao ponto, priorizando códigos limpos, testes automatizados e dados estruturados, sem explicações prolixas desnecessárias.
+7. **Segurança e Governança SecOps (Obrigatório)**:
+   - **Zero Segredos/PII no Git**: Nunca inclua chaves reais CallMeBot/Gemini, telefones pessoais, e-mails reais, hashes de agenda ou IPs internos em código, testes ou documentação. Centralize tudo no `.env` (`chmod 600`).
+   - **Fail-Closed e Bind Local**: Mantenha os binds Docker restritos a `127.0.0.1:${PORT:?...}:${PORT:?...}`, XSRF/CORS habilitados em `.streamlit/config.toml` e valide entradas externas com `src/security.py`.
 
 ---
 

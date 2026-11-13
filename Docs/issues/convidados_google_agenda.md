@@ -6,9 +6,9 @@
 ---
 
 ## 1. Descrição do Problema
-Ao gerar o arquivo `.ics` com o cronograma do concurso para importação no Google Agenda, o campo `ATTENDEE` com o e-mail da Kamila (`kamila_arteman@hotmail.com`) é incluído conforme a especificação RFC-5545:
+Ao gerar o arquivo `.ics` com o cronograma do concurso para importação no Google Agenda, o campo `ATTENDEE` com o e-mail configurado em `GCAL_GUEST_EMAIL` (`convidado@exemplo.com`) é incluído conforme a especificação RFC-5545:
 ```text
-ATTENDEE;CN=Kamila;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:kamila_arteman@hotmail.com
+ATTENDEE;CN=Kamila;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:convidado@exemplo.com
 ```
 Entretanto, ao importar o arquivo `.ics` pela interface web do Google Agenda (**Configurações > Importar e Exportar**), o Google Agenda não adiciona o contato na lista de convidados do evento importado.
 

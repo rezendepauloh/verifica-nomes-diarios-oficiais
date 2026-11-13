@@ -9,10 +9,15 @@ from src.logger import logger
 from src.config import DB_PATH
 
 def get_connection():
-    # Garante que o diretório pai do banco de dados exista antes de conectar
+    # Garante que o diretório pai do banco de dados exista antes de conectar com permissão restrita (0700)
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     try:
-        return sqlite3.connect(str(DB_PATH), timeout=30.0)
+        from src.security import enforce_secure_dir_permissions, enforce_secure_file_permissions
+        enforce_secure_dir_permissions(DB_PATH.parent, mode=0o700)
+        conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
+        if DB_PATH.exists():
+            enforce_secure_file_permissions(DB_PATH, mode=0o600)
+        return conn
     except Exception as e:
         logger.error(f"Falha ao conectar no SQLite [DB_PATH={DB_PATH}]: {e}")
         raise

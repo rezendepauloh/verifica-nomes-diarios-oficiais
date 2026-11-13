@@ -21,8 +21,11 @@ def call_gemini_json(prompt: str) -> Dict[str, Any]:
     if not is_gemini_available():
         raise ValueError("Chave GEMINI_API_KEY não configurada no arquivo .env.")
 
-    url = f"{GEMINI_API_URL}?key={GEMINI_API_KEY}"
-    headers = {"Content-Type": "application/json"}
+    url = GEMINI_API_URL
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY.strip(),
+    }
     payload = {
         "contents": [{
             "parts": [{"text": prompt}]

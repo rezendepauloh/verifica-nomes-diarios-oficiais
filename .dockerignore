@@ -2,11 +2,16 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
+.git/
 .env
+.env.*
+config.env
+*.pem
+*.key
 .docker_build_hash
 *.log
 logs/
- diários_oficiais_scan.lock
+diários_oficiais_scan.lock
 data/
 uploads/
 temp/

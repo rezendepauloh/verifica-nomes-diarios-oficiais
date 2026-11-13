@@ -7,8 +7,9 @@ Utilitários de Calendário e Cronograma:
 - Geração de URLs One-Click para o Google Calendar
 """
 from datetime import datetime, date, timedelta, timezone
+import os
 import re
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 import urllib.parse
 
 from src.editais.extractor_local import parse_date_smart
@@ -215,11 +216,15 @@ def generate_gcal_url(
     titulo: str,
     data_ev: date,
     descricao: str = "",
-    convidado: str = "kamila_arteman@hotmail.com"
+    convidado: Optional[str] = None
 ) -> str:
     """
     Gera uma URL de criação de evento One-Click no Google Calendar para dia inteiro.
+    O convidado padrão é lido da variável de ambiente GCAL_GUEST_EMAIL.
     """
+    if convidado is None:
+        convidado = os.getenv("GCAL_GUEST_EMAIL", "").strip()
+
     # No Google Calendar para all-day, dates=YYYYMMDD/YYYYMMDD (fim é dia exclusivo, soma 1)
     d_start = data_ev.strftime("%Y%m%d")
     d_end = (data_ev + timedelta(days=1)).strftime("%Y%m%d")
@@ -240,12 +245,16 @@ def generate_ics_calendar(
     edital_titulo: str,
     cronograma_items: List[Dict[str, Any]],
     link_oficial: str = "",
-    convidado: str = "kamila_arteman@hotmail.com"
+    convidado: Optional[str] = None
 ) -> str:
     """
     Gera o conteúdo de um arquivo iCalendar (.ics) contendo todos os eventos pontuais
     do concurso, pronto para ser importado na agenda 'Concursos' do Google Calendar.
     """
+    if convidado is None:
+        convidado = os.getenv("GCAL_GUEST_EMAIL", "").strip()
+    cal_org = os.getenv("GCAL_ORGANIZER_ID", "").strip() or convidado
+
     sigla = edital_titulo
     if len(sigla) > 15:
         # Tenta pegar apenas as primeiras palavras ou sigla
@@ -294,11 +303,11 @@ def generate_ics_calendar(
                 f"DESCRIPTION:{descricao_evento}",
             ])
             if convidado:
-                cal_org = "7a35c3f50e2017d2bfb868668ad9cd26e249b41b5b86f0e4cb62e0992e3353d2@group.calendar.google.com"
-                linhas.extend([
-                    f"ORGANIZER;CN={cal_org}:mailto:{cal_org}",
+                if cal_org:
+                    linhas.append(f"ORGANIZER;CN={cal_org}:mailto:{cal_org}")
+                linhas.append(
                     f"ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;CN={convidado};X-NUM-GUESTS=0:mailto:{convidado}"
-                ])
+                )
             linhas.append("END:VEVENT")
 
     linhas.append("END:VCALENDAR")

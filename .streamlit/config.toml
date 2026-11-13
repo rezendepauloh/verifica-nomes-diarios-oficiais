@@ -1,10 +1,14 @@
 [server]
 address = "0.0.0.0"
 headless = true
-enableCORS = false
-enableXsrfProtection = false
+enableCORS = true
+enableXsrfProtection = true
+maxUploadSize = 50
 fileWatcherType = "poll"
 enableStaticServing = true
+
+[client]
+showErrorDetails = false
 
 [theme]
 base = "dark"
@@ -16,4 +20,3 @@ font = "sans serif"
 
 [browser]
 gatherUsageStats = false
-

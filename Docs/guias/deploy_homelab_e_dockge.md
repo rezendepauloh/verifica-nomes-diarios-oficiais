@@ -1,12 +1,12 @@
 # 🚀 Guia de Deploy no Homelab / Mini PC (Dockge)
 
-Este guia documenta o fluxo automatizado de deploy do **Verifica Nomes em Diários Oficiais & Central de Editais** no homelab Mini PC (`192.168.0.8`) gerenciado pelo Dockge/docker-compose.
+Este guia documenta o fluxo automatizado de deploy do **Verifica Nomes em Diários Oficiais & Central de Editais** no homelab Mini PC (`<HOMELAB_HOST>`) gerenciado pelo Dockge/docker-compose.
 
 ---
 
 ## 🔑 Autenticação SSH Passwordless (Sem Senha)
 
-O deploy é projetado para rodar de ponta a ponta sem qualquer solicitação interativa de senha. Para isso, são utilizados dois pilares:
+O deploy é projetado para rodar de ponta a ponta sem qualquer solicitação interativa de senha e com validação **Fail-Closed** (aborta caso variáveis obrigatórias estejam ausentes no `.env`). Para isso, são utilizados dois pilares:
 
 1. **Chave SSH Ed25519**:
    - Chave pública/privada configurada em `~/.ssh/id_ed25519`.
@@ -16,21 +16,21 @@ O deploy é projetado para rodar de ponta a ponta sem qualquer solicitação int
      ```
      impedindo que o SSH solicite senha interativa caso a autenticação falhe.
 
-2. **Permissões de Docker no Servidor (`umbrel`)**:
-   - O usuário `umbrel` no servidor remoto faz parte do grupo `docker` (`usermod -aG docker umbrel`), permitindo invocar `docker compose` sem exigir elevação com `sudo` ou senhas de superusuário.
+2. **Permissões de Docker no Servidor (`<HOMELAB_USER>`)**:
+   - O usuário configurado em `HOMELAB_USER` no servidor remoto faz parte do grupo `docker` (`usermod -aG docker <HOMELAB_USER>`), permitindo invocar `docker compose` sem exigir elevação com `sudo` ou senhas de superusuário.
 
 ---
 
 ## ⚙️ Variáveis de Ambiente de Deploy (`.env`)
 
-No arquivo `.env` do projeto local:
+No arquivo `.env` do projeto local (com permissão `chmod 600`):
 
 ```env
-# DEPLOY NO HOMELAB / MINI PC (DOCKGE)
-HOMELAB_HOST=192.168.0.8
-HOMELAB_USER=umbrel
+# DEPLOY NO HOMELAB / MINI PC (DOCKGE) — Obrigatórias (Fail-Closed)
+HOMELAB_HOST=<SEU_IP_HOMELAB>
+HOMELAB_USER=<SEU_USUARIO_SSH>
 HOMELAB_PORT=22
-HOMELAB_DEST_DIR=/home/umbrel/umbrelos-scripts/compose/verifica-nomes-diarios-oficiais
+HOMELAB_DEST_DIR=/caminho/absoluto/no/servidor/verifica-nomes-diarios-oficiais
 HOMELAB_SSH_KEY=~/.ssh/id_ed25519
 HOMELAB_PORT_APP=8093
 ```
@@ -46,19 +46,19 @@ HOMELAB_PORT_APP=8093
 2. Escolha a opção correspondente ao deploy no Homelab / Mini PC.
 3. O pipeline executa 5 passos de forma transparente:
    - **[1/5]** Teste de conectividade com o servidor (`ping`);
-   - **[2/5]** Garantia dos diretórios remotos de persistência (`data`, `logs`, `uploads`);
+   - **[2/5]** Garantia dos diretórios remotos de persistência (`data`, `logs`, `uploads`) com permissão restrita (`chmod 700`);
    - **[3/5]** Sincronização incremental do código-fonte via `rsync` através do túnel SSH autenticado;
-   - **[4/5]** Transferência e ajuste das variáveis de produção (`.env`) e do stack compose oficial (`docker-compose.server.yml`);
+   - **[4/5]** Transferência segura (`mktemp` com `umask 077` e `chmod 600`) das variáveis de produção (`.env`) e do stack compose oficial (`docker-compose.server.yml`);
    - **[5/5]** Build e reinicialização dos containers via `docker compose up -d --build app`.
 
 ---
 
 ## 🌐 URLs de Acesso no Homelab
 
-- **Domínio Local HTTPS (com SSL Wildcard):** [https://diarios.pk.local/](https://diarios.pk.local/)
-- **Acesso Direto por IP:** [http://192.168.0.8:8093](http://192.168.0.8:8093)
-- **Painel Dockge:** [http://192.168.0.8:5001](http://192.168.0.8:5001)
-- **Nginx Proxy Manager:** [http://192.168.0.8:81](http://192.168.0.8:81)
+- **Domínio Local HTTPS (via Proxy Reverso):** Definido em `APP_LOCAL_URL` no `.env`
+- **Bind Local Seguro no Host:** `127.0.0.1:${PORT}:${PORT}` (exposto externamente apenas via proxy reverso na `homelab_network`)
+- **Painel Dockge:** `http://<HOMELAB_HOST>:5001`
+- **Nginx Proxy Manager:** `http://<HOMELAB_HOST>:81`
 
 ---
 

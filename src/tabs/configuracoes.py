@@ -33,7 +33,7 @@ from src.components.subtabs import render_subtabs
 from src.components.metric_cards import render_metric_cards
 
 def format_phone(val: str) -> str:
-    """Formata string numérica de telefone para padrão brasileiro (ex: (67) 99247-1379 ou (67) 3345-1234)."""
+    """Formata string numérica de telefone para padrão brasileiro (ex: (67) 99999-0000 ou (67) 3345-1234)."""
     if not val:
         return ""
     digits = re.sub(r"\D", "", str(val))
@@ -78,9 +78,9 @@ def modal_gerenciar_nome(item: dict = None):
     with st.form("form_modal_nome"):
         c1, c2 = st.columns([1.8, 1.2])
         with c1:
-            nome_val = st.text_input("Nome Completo *", value=init_name, placeholder="Ex: Paulo Henrique Gonçalves Rezende")
+            nome_val = st.text_input("Nome Completo *", value=init_name, placeholder="Ex: Nome Completo do Candidato")
         with c2:
-            phone_val = st.text_input("Telefone / WhatsApp (com DDD)", value=init_phone, placeholder="Ex: (67) 99247-1379")
+            phone_val = st.text_input("Telefone / WhatsApp (com DDD)", value=init_phone, placeholder="Ex: (67) 99999-0000")
         
         c3, c4 = st.columns([1.8, 1.2])
         with c3:

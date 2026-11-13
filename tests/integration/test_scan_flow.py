@@ -42,9 +42,9 @@ class TestIntegrationScanFlow(unittest.TestCase):
     def test_new_occurrence_triggers_whatsapp_broadcast(self, mock_send):
         mock_send.return_value = True
 
-        # Cadastra destinatários com chaves ativas
-        add_monitored_name("Paulo Henrique", "(67) 99247-1379", "3587903")
-        add_monitored_name("Kamila", "(67) 99853-8804", "9835298")
+        # Cadastra destinatários com chaves ativas (dados sintéticos de teste)
+        add_monitored_name("Paulo Henrique", "(67) 99999-0001", "1000001")
+        add_monitored_name("Kamila", "(67) 99999-0002", "1000002")
 
         # 1. Primeira inserção: Inédita
         is_new = save_occurrence(

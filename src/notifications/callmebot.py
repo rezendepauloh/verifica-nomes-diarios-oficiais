@@ -16,10 +16,10 @@ def normalize_phone(raw_phone: str) -> str:
     Normaliza o número de telefone para o padrão internacional exigido pelo CallMeBot (apenas dígitos, sem '+').
     Nota para números celulares do Brasil (+55):
     O WhatsApp internacional registra números celulares brasileiros sem o dígito '9' extra após o DDD
-    (ex: +55 67 99247-1379 é registrado como 556792471379 no WhatsApp/CallMeBot).
+    (ex: +55 67 99999-0000 é registrado como 556799990000 no WhatsApp/CallMeBot).
     Portanto:
-      - 11 dígitos com 9 após DDD (ex: 67 9 9247 1379) -> remove o 9 após o DDD -> 556792471379
-      - 13 dígitos começando com 55 e 9 após DDD (ex: 55 67 9 9247 1379) -> 556792471379
+      - 11 dígitos com 9 após DDD (ex: 67 9 9999 0000) -> remove o 9 após o DDD -> 556799990000
+      - 13 dígitos começando com 55 e 9 após DDD (ex: 55 67 9 9999 0000) -> 556799990000
       - Caso contrário, preserva os dígitos completos com prefixo 55.
     """
     if not raw_phone:
@@ -170,16 +170,17 @@ def format_cronograma_deadline_message(
     if link_inscricao and link_inscricao.strip():
         lines.append(f"✍️ *Link de Inscrição:* {link_inscricao.strip()}")
 
-    # Links de Acesso
-    l_url = (local_url or os.getenv("APP_LOCAL_URL", "https://diarios.pk.local")).rstrip("/")
-    p_url = (public_url or os.getenv("APP_PUBLIC_URL", "https://diarios-paulo.shares.zrok.io")).rstrip("/")
+    # Links de Acesso (lidos exclusivamente do .env ou parâmetros, sem expor URLs reais hardcoded)
+    l_url = (local_url or os.getenv("APP_LOCAL_URL", "")).rstrip("/")
+    p_url = (public_url or os.getenv("APP_PUBLIC_URL", "")).rstrip("/")
 
-    lines.append("")
-    lines.append("🔗 *Acessar Central de Editais:*")
-    if l_url:
-        lines.append(f"• Local (Wi-Fi): {l_url}/?tab=editais")
-    if p_url:
-        lines.append(f"• Remoto (zrok): {p_url}/?tab=editais")
+    if l_url or p_url:
+        lines.append("")
+        lines.append("🔗 *Acessar Central de Editais:*")
+        if l_url:
+            lines.append(f"• Local (Wi-Fi): {l_url}/?tab=editais")
+        if p_url:
+            lines.append(f"• Remoto (zrok): {p_url}/?tab=editais")
 
     return "\n".join(lines)
 

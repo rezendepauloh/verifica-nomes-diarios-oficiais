@@ -15,58 +15,40 @@ C_RED="\033[31m"
 C_MAGENTA="\033[35m"
 C_GRAY="\033[90m"
 
+enforce_local_permissions() {
+    [ -f .env ] && chmod 600 .env 2>/dev/null || true
+    [ -d data ] && chmod 700 data 2>/dev/null || true
+    [ -f data/results.db ] && chmod 600 data/results.db 2>/dev/null || true
+}
+
 detect_ip() {
-    LOCAL_IP=""
-    if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ] || [ -n "$WSL_DISTRO_NAME" ]; then
-        WIN_IP=$(powershell.exe -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { (\$_.IPAddress -like '192.168.*' -or \$_.IPAddress -like '10.*') -and \$_.IPAddress -notlike '192.168.56.*' -and \$_.InterfaceAlias -notlike '*Virtual*' -and \$_.InterfaceAlias -notlike '*vEthernet*' } | Select-Object -ExpandProperty IPAddress -First 1)" 2>/dev/null | tr -d '\r\n')
-        if [ -n "$WIN_IP" ]; then
-            LOCAL_IP="$WIN_IP"
-        fi
-    fi
-
-    if [ -z "$LOCAL_IP" ]; then
-        if command -v hostname >/dev/null 2>&1; then
-            LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-        fi
-
-        if [ -z "$LOCAL_IP" ] || [ "$LOCAL_IP" = "127.0.0.1" ]; then
-            if command -v ip >/dev/null 2>&1; then
-                LOCAL_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+')
-            fi
-        fi
-    fi
-
-    if [ -z "$LOCAL_IP" ]; then
-        LOCAL_IP="localhost"
-    fi
-
+    LOCAL_IP="127.0.0.1"
     export HOST_LOCAL_IP="${LOCAL_IP}"
 }
 
 load_env_file() {
     if [ ! -f .env ]; then
-        if [ -f .env-example ]; then
-            echo -e "${C_YELLOW}⚠️  Arquivo .env não encontrado. Criando a partir de .env-example...${C_RESET}"
-            cp .env-example .env
-        else
-            echo -e "${C_RED}❌ Erro: Arquivo .env não encontrado e .env-example não disponível.${C_RESET}"
-            exit 1
-        fi
+        echo -e "${C_RED}❌ Erro [Fail-Closed]: Arquivo .env não encontrado! Copie .env-example para .env e configure as variáveis obrigatórias.${C_RESET}"
+        exit 1
     fi
 
+    enforce_local_permissions
+
     local env_port
-    env_port=$(grep -E '^[[:space:]]*PORT[[:space:]]*=' .env | tail -n 1 | cut -d '=' -f 2 | tr -d ' "\r\n')
-    if [ -z "$env_port" ]; then
-        echo -e "${C_RED}❌ Erro: Variável PORT não configurada no arquivo .env!${C_RESET}"
+    env_port=$(grep -E '^[[:space:]]*PORT[[:space:]]*=' .env | tail -n 1 | cut -d '=' -f 2 | tr -d ' "\047\r\n')
+    if [[ ! "$env_port" =~ ^[0-9]{2,5}$ ]] || [ "$env_port" -lt 1 ] || [ "$env_port" -gt 65535 ]; then
+        echo -e "${C_RED}❌ Erro [Fail-Closed]: Variável PORT ausente ou inválida no arquivo .env!${C_RESET}"
         exit 1
     fi
     PORT="$env_port"
 }
 
-
 open_browser() {
     local port="${1:-$PORT}"
-    local url="http://localhost:${port}"
+    if [[ ! "$port" =~ ^[0-9]{2,5}$ ]]; then
+        return 1
+    fi
+    local url="http://127.0.0.1:${port}"
     if command -v xdg-open >/dev/null 2>&1; then
         xdg-open "$url" >/dev/null 2>&1 &
     elif command -v gnome-open >/dev/null 2>&1; then
@@ -98,7 +80,6 @@ render_bottom_toolbar() {
     local sep_len=$(( cols - 2 ))
     [ $sep_len -lt 10 ] && sep_len=70
 
-    # Salva posição do cursor e desce para as duas últimas linhas
     tput sc 2>/dev/null
     printf "\033[%d;1H" $(( rows - 1 ))
     echo -ne "${C_GRAY}─${C_RESET}"
@@ -111,8 +92,6 @@ render_bottom_toolbar() {
 setup_terminal_split() {
     local rows
     rows=$(tput lines 2>/dev/null || echo 24)
-    # Define a região de rolagem (scrolling region) da linha 1 até (rows - 2)
-    # Assim, os logs nunca sobrescrevem as duas linhas de baixo!
     printf "\033[1;%dr" $(( rows - 2 )) 2>/dev/null
     render_bottom_toolbar
 }
@@ -135,7 +114,6 @@ stream_interactive_logs() {
                     ;;
                 s|S)
                     kill "$LOG_PID" 2>/dev/null
-                    # Restaura terminal temporariamente para varredura interativa
                     local rows
                     rows=$(tput lines 2>/dev/null || echo 24)
                     printf "\033[1;%dr" "$rows" 2>/dev/null
@@ -177,7 +155,7 @@ stream_interactive_logs() {
 check_auto_build() {
     local HASH_FILE=".docker_build_hash"
     local CURRENT_HASH
-    CURRENT_HASH=$(cat Dockerfile requirements.txt 2>/dev/null | md5sum | awk '{print $1}')
+    CURRENT_HASH=$(cat Dockerfile requirements.txt 2>/dev/null | sha256sum | awk '{print $1}')
     local BUILD_FLAG=""
 
     if [ ! -f "$HASH_FILE" ] || [ "$(cat "$HASH_FILE" 2>/dev/null)" != "$CURRENT_HASH" ]; then
@@ -195,7 +173,7 @@ start_app() {
     load_env_file
     detect_ip
     clear
-    echo -e "${C_CYAN}Iniciando Verificador de Diários Oficiais (Porta: ${PORT})...${C_RESET}"
+    echo -e "${C_CYAN}Iniciando Verificador de Diários Oficiais (127.0.0.1:${PORT})...${C_RESET}"
     check_auto_build
     open_browser "$PORT"
     trap cleanup INT TERM EXIT
@@ -203,6 +181,7 @@ start_app() {
 }
 
 run_scan_manual() {
+    load_env_file
     clear
     echo -e "${C_CYAN}Disparando varredura completa manual no container...${C_RESET}"
     docker compose up -d app >/dev/null 2>&1
@@ -212,12 +191,13 @@ run_scan_manual() {
 }
 
 rebuild_docker() {
+    load_env_file
     clear
     echo -e "${C_MAGENTA}Reconstruindo imagem Docker Compose (--no-cache)...${C_RESET}"
     docker compose build --no-cache
     local HASH_FILE=".docker_build_hash"
     local CURRENT_HASH
-    CURRENT_HASH=$(cat Dockerfile requirements.txt 2>/dev/null | md5sum | awk '{print $1}')
+    CURRENT_HASH=$(cat Dockerfile requirements.txt 2>/dev/null | sha256sum | awk '{print $1}')
     if [ -n "$CURRENT_HASH" ]; then
         echo "$CURRENT_HASH" > "$HASH_FILE"
     fi
@@ -242,6 +222,7 @@ deploy_homelab() {
     load_env_file
     if [ -f .env ]; then
         set -a
+        # shellcheck disable=SC1091
         source .env
         set +a
     fi
@@ -249,43 +230,69 @@ deploy_homelab() {
     echo -e "${C_CYAN}${C_BOLD}🚀 Início do Pipeline de Deploy no Homelab / Mini PC (Dockge)${C_RESET}"
     echo ""
 
-    local HOST="${HOMELAB_HOST:-192.168.0.8}"
-    local USER="${HOMELAB_USER:-umbrel}"
-    local PORT_SSH="${HOMELAB_PORT:-22}"
-    local DEST_DIR="${HOMELAB_DEST_DIR:-/home/umbrel/umbrelos-scripts/compose/verifica-nomes-diarios-oficiais}"
+    # Trava Fail-Closed: NUNCA usar defaults hardcoded de IPs, usuários ou diretórios
+    local HOST="${HOMELAB_HOST:-}"
+    local USER="${HOMELAB_USER:-}"
+    local PORT_SSH="${HOMELAB_PORT:-}"
+    local DEST_DIR="${HOMELAB_DEST_DIR:-}"
+    local SERVER_APP_PORT="${HOMELAB_PORT_APP:-}"
     local SSH_KEY="${HOMELAB_SSH_KEY:-$HOME/.ssh/id_ed25519}"
     SSH_KEY="${SSH_KEY/#\~/$HOME}"
 
-    local SSH_OPTS="-p ${PORT_SSH} -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o PreferredAuthentications=publickey"
-    local SCP_OPTS="-P ${PORT_SSH} -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o PreferredAuthentications=publickey"
+    if [ -z "$HOST" ] || [ -z "$USER" ] || [ -z "$PORT_SSH" ] || [ -z "$DEST_DIR" ] || [ -z "$SERVER_APP_PORT" ]; then
+        echo -e "${C_RED}❌ Erro [Fail-Closed]: Variáveis HOMELAB_HOST, HOMELAB_USER, HOMELAB_PORT, HOMELAB_DEST_DIR e HOMELAB_PORT_APP são obrigatórias no .env!${C_RESET}"
+        return 1
+    fi
+
+    # Whitelists Regex Estritas contra Command Injection
+    if [[ ! "$HOST" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        echo -e "${C_RED}❌ Erro [Fail-Closed]: HOMELAB_HOST contém caracteres inválidos!${C_RESET}"
+        return 1
+    fi
+    if [[ ! "$USER" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo -e "${C_RED}❌ Erro [Fail-Closed]: HOMELAB_USER contém caracteres inválidos!${C_RESET}"
+        return 1
+    fi
+    if [[ ! "$PORT_SSH" =~ ^[0-9]{2,5}$ ]] || [[ ! "$SERVER_APP_PORT" =~ ^[0-9]{2,5}$ ]]; then
+        echo -e "${C_RED}❌ Erro [Fail-Closed]: HOMELAB_PORT / HOMELAB_PORT_APP devem ser numéricas!${C_RESET}"
+        return 1
+    fi
+    if [[ ! "$DEST_DIR" =~ ^/[a-zA-Z0-9._/-]+$ ]] || [[ "$DEST_DIR" == *".."* ]]; then
+        echo -e "${C_RED}❌ Erro [Fail-Closed]: HOMELAB_DEST_DIR inválido ou contém sequência '..' proibida!${C_RESET}"
+        return 1
+    fi
+
+    local SSH_OPTS=("-p" "${PORT_SSH}" "-o" "StrictHostKeyChecking=accept-new" "-o" "BatchMode=yes" "-o" "PreferredAuthentications=publickey")
+    local SCP_OPTS=("-P" "${PORT_SSH}" "-o" "StrictHostKeyChecking=accept-new" "-o" "BatchMode=yes" "-o" "PreferredAuthentications=publickey")
     if [ -f "$SSH_KEY" ]; then
-        SSH_OPTS="$SSH_OPTS -i $SSH_KEY"
-        SCP_OPTS="$SCP_OPTS -i $SSH_KEY"
+        chmod 600 "$SSH_KEY" 2>/dev/null || true
+        SSH_OPTS+=("-i" "$SSH_KEY")
+        SCP_OPTS+=("-i" "$SSH_KEY")
     fi
 
     # 1. Testar conectividade (Ping)
     echo -e "${C_YELLOW}[1/5] Verificando conectividade com o servidor (${HOST})...${C_RESET}"
     if ! ping -c 1 -W 2 "$HOST" >/dev/null 2>&1; then
-        echo -e "${C_RED}❌ Não foi possível alcançar ${HOST}. Verifique se o Mini PC está ligado e conectado na mesma rede.${C_RESET}"
+        echo -e "${C_RED}❌ Não foi possível alcançar ${HOST}. Verifique se o servidor está ligado e acessível.${C_RESET}"
         return 1
     fi
     echo -e "${C_GREEN}✅ Servidor ${HOST} respondendo perfeitamente!${C_RESET}"
     echo ""
 
-    # 2. Criar diretório remoto se não existir e preparar arquivos de persistência
-    echo -e "${C_YELLOW}[2/5] Garantindo diretório da stack no Mini PC (${DEST_DIR})...${C_RESET}"
-    ssh $SSH_OPTS "${USER}@${HOST}" "mkdir -p ${DEST_DIR}/data ${DEST_DIR}/logs ${DEST_DIR}/uploads && chmod 777 ${DEST_DIR}/data ${DEST_DIR}/logs ${DEST_DIR}/uploads ${DEST_DIR} 2>/dev/null || true"
+    # 2. Criar diretório remoto se não existir com permissões restritivas (700/750, NUNCA 777)
+    echo -e "${C_YELLOW}[2/5] Garantindo diretório da stack no servidor (${DEST_DIR})...${C_RESET}"
+    ssh "${SSH_OPTS[@]}" "${USER}@${HOST}" "mkdir -p '${DEST_DIR}/data' '${DEST_DIR}/logs' '${DEST_DIR}/uploads' && chmod 700 '${DEST_DIR}/data' '${DEST_DIR}/logs' '${DEST_DIR}/uploads' '${DEST_DIR}'"
     if [ $? -ne 0 ]; then
         echo -e "${C_RED}❌ Falha na comunicação SSH com ${USER}@${HOST}.${C_RESET}"
         return 1
     fi
-    echo -e "${C_GREEN}✅ Diretório e arquivos de persistência preparados com sucesso!${C_RESET}"
+    echo -e "${C_GREEN}✅ Diretório e permissões restritivas (0700) aplicados com sucesso!${C_RESET}"
     echo ""
 
     # 3. Sincronizar arquivos via Rsync (com exclusões seguras)
     echo -e "${C_YELLOW}[3/5] Enviando código-fonte e assets via rsync...${C_RESET}"
     rsync -avz \
-        -e "ssh $SSH_OPTS" \
+        -e "ssh ${SSH_OPTS[*]}" \
         --exclude '.git' \
         --exclude '.venv' \
         --exclude '__pycache__' \
@@ -306,57 +313,63 @@ deploy_homelab() {
     echo -e "${C_GREEN}✅ Código-fonte sincronizado com sucesso!${C_RESET}"
     echo ""
 
-    # 4. Configurar docker-compose.yml e .env de produção no servidor
+    # 4. Configurar docker-compose.yml e .env de produção no servidor com mktemp seguro (0600)
     echo -e "${C_YELLOW}[4/5] Configurando docker-compose e .env de produção no servidor...${C_RESET}"
-    
-    # Prepara cópia do .env de produção local temporária
-    local TEMP_PROD_ENV="/tmp/diarios_prod.env.$$"
+    local TEMP_PROD_ENV
+    TEMP_PROD_ENV=$(umask 077 && mktemp /tmp/diarios_prod_env.XXXXXX)
+    if [ -z "$TEMP_PROD_ENV" ] || [ ! -f "$TEMP_PROD_ENV" ]; then
+        echo -e "${C_RED}❌ Erro ao criar arquivo temporário seguro com mktemp.${C_RESET}"
+        return 1
+    fi
+    chmod 600 "$TEMP_PROD_ENV"
     cp .env "$TEMP_PROD_ENV"
 
-    local SERVER_APP_PORT="${HOMELAB_PORT_APP:-8093}"
-
-    # Ajusta PORT externa do servidor para a porta configurada no homelab
     if grep -q '^PORT=' "$TEMP_PROD_ENV"; then
         sed -i "s/^PORT=.*/PORT=${SERVER_APP_PORT}/" "$TEMP_PROD_ENV"
     else
         echo "PORT=${SERVER_APP_PORT}" >> "$TEMP_PROD_ENV"
     fi
 
-    scp $SCP_OPTS "$TEMP_PROD_ENV" "${USER}@${HOST}:${DEST_DIR}/.env"
+    scp "${SCP_OPTS[@]}" "$TEMP_PROD_ENV" "${USER}@${HOST}:${DEST_DIR}/.env"
+    local SCP_STATUS=$?
     rm -f "$TEMP_PROD_ENV"
+    if [ $SCP_STATUS -ne 0 ]; then
+        echo -e "${C_RED}❌ Falha ao transferir arquivo .env para o servidor.${C_RESET}"
+        return 1
+    fi
 
-    # Envia docker-compose.server.yml como docker-compose.yml oficial no servidor (reconhecido pelo Dockge)
+    ssh "${SSH_OPTS[@]}" "${USER}@${HOST}" "chmod 600 '${DEST_DIR}/.env'"
+
     if [ -f "docker-compose.server.yml" ]; then
-        scp $SCP_OPTS "docker-compose.server.yml" "${USER}@${HOST}:${DEST_DIR}/docker-compose.yml"
+        scp "${SCP_OPTS[@]}" "docker-compose.server.yml" "${USER}@${HOST}:${DEST_DIR}/docker-compose.yml"
     else
         echo -e "${C_RED}❌ Arquivo docker-compose.server.yml não encontrado!${C_RESET}"
         return 1
     fi
-    echo -e "${C_GREEN}✅ Arquivos de ambiente e stack compose configurados!${C_RESET}"
+    echo -e "${C_GREEN}✅ Arquivos de ambiente (.env 0600) e stack compose configurados!${C_RESET}"
     echo ""
 
-    # 5. Executar Build e Up no Docker do Mini PC
-    echo -e "${C_YELLOW}[5/5] Reiniciando aplicação com a nova build no Mini PC...${C_RESET}"
-    ssh $SSH_OPTS "${USER}@${HOST}" "cd ${DEST_DIR} && docker compose up -d --build app"
-    
+    # 5. Executar Build e Up no Docker do servidor
+    echo -e "${C_YELLOW}[5/5] Reiniciando aplicação com a nova build no servidor...${C_RESET}"
+    ssh "${SSH_OPTS[@]}" "${USER}@${HOST}" "cd '${DEST_DIR}' && docker compose up -d --build app"
+
     if [ $? -eq 0 ]; then
         echo ""
         echo -e "${C_GREEN}${C_BOLD}🎉 DEPLOY CONCLUÍDO COM SUCESSO NO HOMELAB!${C_RESET}"
-        echo -e "Acesse pelo Domínio Local: ${C_CYAN}https://diarios.pk.local/${C_RESET}"
-        echo -e "Acesse diretamente por IP: ${C_CYAN}http://${HOST}:${SERVER_APP_PORT}${C_RESET}"
-        echo -e "Painel Dockge:             ${C_CYAN}http://${HOST}:5001${C_RESET}"
+        [ -n "${APP_LOCAL_URL:-}" ] && echo -e "Acesse pelo Domínio Local: ${C_CYAN}${APP_LOCAL_URL}${C_RESET}"
+        echo -e "Bind Local Seguro (Host):  ${C_CYAN}http://127.0.0.1:${SERVER_APP_PORT}${C_RESET}"
     else
         echo -e "${C_RED}❌ Ocorreu um erro ao iniciar a stack no servidor remoto.${C_RESET}"
     fi
     echo ""
-    read -p "Pressione [Enter] para voltar ao menu..."
+    read -r -p "Pressione [Enter] para voltar ao menu..."
 }
 
 run_unit_tests() {
     echo -e "${C_CYAN}🧪 Executando suíte de testes unificada...${C_RESET}"
     docker exec -it verifica-diarios-app python tests/run_all.py || docker exec -it verifica-diarios-app pytest -v tests/
     echo ""
-    read -p "Pressione [Enter] para voltar ao menu..."
+    read -r -p "Pressione [Enter] para voltar ao menu..."
 }
 
 show_menu() {
@@ -375,7 +388,7 @@ show_menu() {
     echo -e "${C_CYAN}${C_BOLD}║${C_RESET}  ${C_RED}0${C_RESET} - Sair                                                    ${C_CYAN}${C_BOLD}║${C_RESET}"
     echo -e "${C_CYAN}${C_BOLD}╚══════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""
-    read -p "Opção [0-7]: " opcao
+    read -r -p "Opção [0-7]: " opcao
     case "$opcao" in
         1) start_app ;;
         2) run_scan_manual ;;
@@ -429,4 +442,3 @@ case "$1" in
         show_menu
         ;;
 esac
-

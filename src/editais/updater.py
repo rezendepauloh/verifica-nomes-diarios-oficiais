@@ -67,12 +67,14 @@ def is_ufms_concursos_url(url: str) -> bool:
 
 def extract_cebraspe_slug(url: str) -> Optional[str]:
     """
-    Extrai o slug do concurso da URL do Cebraspe.
+    Extrai o slug do concurso da URL do Cebraspe com validação alfanumérica estrita.
     Ex: 'https://www.cebraspe.org.br/concursos/cgu_26_affc' -> 'cgu_26_affc'
     """
     match = re.search(r'/concursos/([^/?#]+)', url or "", re.IGNORECASE)
     if match:
-        return match.group(1).strip()
+        cand = match.group(1).strip()
+        if re.fullmatch(r'[A-Za-z0-9_-]{2,80}', cand):
+            return cand
     return None
 
 
@@ -500,13 +502,26 @@ def check_for_updates(edital_id: int) -> Tuple[List[Dict[str, Any]], List[Dict[s
 def download_document(url_download: str, file_name_hint: str, edital_id: Optional[int] = None) -> Optional[str]:
     """
     Faz download de um arquivo e salva no subdiretório do concurso (ex: uploads/editais/{slug}/) com nome seguro.
+    Inclui validação anti-SSRF, sanitização contra Path Traversal e limite de tamanho contra DoS.
     Retorna o caminho absoluto do arquivo salvo.
     """
+    from src.security import is_safe_external_url, sanitize_filename, resolve_safe_path, MAX_DOWNLOAD_BYTES
+
     try:
+        if not is_safe_external_url(url_download):
+            logger.error(f"Download bloqueado por política anti-SSRF: {url_download}")
+            return None
+
         resp = requests.get(url_download, headers=HEADERS, timeout=30)
         resp.raise_for_status()
 
-        safe_name = f"{int(datetime.now().timestamp())}_{file_name_hint.replace(' ', '_')}"
+        content = resp.content or b""
+        if len(content) > MAX_DOWNLOAD_BYTES:
+            logger.error(f"Arquivo excedeu o limite máximo permitido ({MAX_DOWNLOAD_BYTES} bytes): {url_download}")
+            return None
+
+        clean_hint = sanitize_filename(file_name_hint or "documento.pdf", default_ext=".pdf")
+        safe_name = f"{int(datetime.now().timestamp())}_{clean_hint}"
         if not safe_name.lower().endswith(".pdf"):
             safe_name += ".pdf"
 
@@ -524,9 +539,9 @@ def download_document(url_download: str, file_name_hint: str, edital_id: Optiona
         else:
             target_dir = EDITAIS_DIR
 
-        dest_path = target_dir / safe_name
+        dest_path = resolve_safe_path(target_dir, safe_name)
         with open(dest_path, "wb") as f:
-            f.write(resp.content)
+            f.write(content)
 
         return str(dest_path)
     except Exception as e:

@@ -31,6 +31,10 @@ from src.database import init_db, get_occurrences
 from src.scheduler import start_scheduler_if_not_running
 from src.components import render_header, render_dashboard_sidebar, render_metrics, render_scan_control
 from src.tabs import render_dashboard_tab, render_configuracoes_tab, render_editais_tab
+from src.security import enforce_streamlit_auth
+
+# 0. Guard de autenticação WebUI (Fail-Closed quando APP_AUTH_REQUIRED=true)
+enforce_streamlit_auth()
 
 # 1. Inicializa o banco de dados e seed
 init_db()

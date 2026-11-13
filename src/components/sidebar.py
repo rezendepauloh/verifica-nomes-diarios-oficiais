@@ -183,7 +183,6 @@ def render_editais_sidebar(disciplinas_disponiveis: Optional[List[str]] = None) 
                     edital_titulo=edital_info["titulo"],
                     cronograma_items=cronograma,
                     link_oficial=edital_info.get("link_oficial", ""),
-                    convidado="kamila_arteman@hotmail.com"
                 )
                 nome_arquivo_ics = f"cronograma_{edital_info['titulo'].lower().replace(' ', '_')}.ics"
                 st.sidebar.download_button(

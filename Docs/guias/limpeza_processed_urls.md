@@ -52,11 +52,11 @@ Caso a stack esteja rodando no servidor Mini PC (Dockge/Homelab):
 
 ### A. Consultar quantas URLs estão registradas no servidor
 ```bash
-ssh umbrel@192.168.0.8 "docker exec verifica-diarios-app python3 -c \"import sqlite3; conn = sqlite3.connect('data/results.db'); print('Total registrado no servidor:', conn.cursor().execute('SELECT COUNT(*) FROM processed_urls').fetchone()[0]); conn.close()\""
+ssh "${HOMELAB_USER}@${HOMELAB_HOST}" "docker exec verifica-diarios-app python3 -c \"import sqlite3; conn = sqlite3.connect('data/results.db'); print('Total registrado no servidor:', conn.cursor().execute('SELECT COUNT(*) FROM processed_urls').fetchone()[0]); conn.close()\""
 ```
 
 ### B. Limpar todas as URLs processadas no servidor (Reset de Leitura)
 ```bash
-ssh umbrel@192.168.0.8 "docker exec verifica-diarios-app python3 -c \"import sqlite3; conn = sqlite3.connect('data/results.db'); conn.cursor().execute('DELETE FROM processed_urls'); conn.commit(); print('✅ processed_urls limpo no servidor!'); conn.close()\""
+ssh "${HOMELAB_USER}@${HOMELAB_HOST}" "docker exec verifica-diarios-app python3 -c \"import sqlite3; conn = sqlite3.connect('data/results.db'); conn.cursor().execute('DELETE FROM processed_urls'); conn.commit(); print('✅ processed_urls limpo no servidor!'); conn.close()\""
 ```
 

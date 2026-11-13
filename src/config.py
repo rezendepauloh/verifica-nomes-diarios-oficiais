@@ -26,6 +26,19 @@ DATA_DIR = ROOT_DIR / "data"
 UPLOADS_DIR = ROOT_DIR / "uploads"
 EDITAIS_DIR = UPLOADS_DIR / "editais"
 DB_PATH = DATA_DIR / "results.db"
+ENV_FILE_PATH = ROOT_DIR / ".env"
+
+# Aplica permissões restritas (0600) no arquivo .env e banco se existirem
+try:
+    from src.security import enforce_secure_file_permissions, enforce_secure_dir_permissions, validate_slug
+    if ENV_FILE_PATH.exists():
+        enforce_secure_file_permissions(ENV_FILE_PATH)
+    if DATA_DIR.exists():
+        enforce_secure_dir_permissions(DATA_DIR)
+    if DB_PATH.exists():
+        enforce_secure_file_permissions(DB_PATH)
+except Exception:
+    validate_slug = None  # fallback defensivo
 
 PORT = os.getenv("PORT", "")
 TZ_NAME = os.getenv("TZ", "America/Campo_Grande").strip()
@@ -33,7 +46,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
 def get_concurso_slug(titulo: str = "", ano: int = 2026, link_oficial: str = "") -> str:
     """
-    Gera ou extrai o slug padronizado da pasta do concurso.
+    Gera ou extrai o slug padronizado da pasta do concurso com whitelist estrita anti-Path Traversal.
     Prioridade:
     1. Slug oficial extraído da URL (ex: cebraspe.org.br/.../cgu_26_affc -> 'cgu_26_affc')
     2. Fallback: '{titulo_limpo}_{ano}' (ex: 'cgu_2026', 'mpe_ms_2026')
@@ -43,20 +56,23 @@ def get_concurso_slug(titulo: str = "", ano: int = 2026, link_oficial: str = "")
         # Se for Cebraspe
         m_cebraspe = re.search(r'/concursos/([^/?#]+)', link_oficial, re.IGNORECASE)
         if m_cebraspe:
-            return m_cebraspe.group(1).strip().lower()
+            cand = re.sub(r'[^a-z0-9_-]', '_', m_cebraspe.group(1).strip().lower()).strip('._-')
+            if len(cand) >= 3 and ".." not in cand:
+                return cand[:80]
         # Se tiver outro padrão com slug no path
         path_parts = [p for p in link_oficial.split('?')[0].split('/') if p]
         if path_parts and len(path_parts[-1]) >= 4 and not path_parts[-1].endswith('.html'):
-            slug_cand = re.sub(r'[^\w\-_]', '_', path_parts[-1].lower())
-            if len(slug_cand) >= 3:
-                return slug_cand
+            slug_cand = re.sub(r'[^a-z0-9_-]', '_', path_parts[-1].lower()).strip('._-')
+            if len(slug_cand) >= 3 and ".." not in slug_cand:
+                return slug_cand[:80]
 
     # Fallback: nome_ano (com normalização de acentos para ASCII)
     import unicodedata
     raw_tit = unicodedata.normalize('NFKD', titulo or "concurso").encode('ASCII', 'ignore').decode('utf-8')
-    t_clean = re.sub(r'[^\w]', '_', raw_tit.strip().lower())
-    t_clean = re.sub(r'_+', '_', t_clean).strip('_')
-    return f"{t_clean}_{ano}"
+    t_clean = re.sub(r'[^a-z0-9]', '_', raw_tit.strip().lower())
+    t_clean = re.sub(r'_+', '_', t_clean).strip('_') or "concurso"
+    safe_ano = int(ano) if str(ano).isdigit() else 2026
+    return f"{t_clean[:60]}_{safe_ano}"
 
 def get_edital_folder(titulo: str = "", ano: int = 2026, link_oficial: str = "") -> Path:
     """Retorna o diretório específico do concurso dentro de uploads/editais/ criando-o se necessário."""

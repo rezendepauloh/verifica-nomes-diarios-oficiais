@@ -3,7 +3,7 @@
 src/editais/notifications.py
 Módulo responsável por monitorar os prazos dos editais (edital_cronograma) e disparar
 alertas via WhatsApp (CallMeBot) para datas que vencem 'Hoje' ou 'Amanhã',
-com links para https://diarios.pk.local/ e https://diarios-paulo.shares.zrok.io/.
+com links configurados via APP_LOCAL_URL e APP_PUBLIC_URL no .env.
 """
 
 import time
