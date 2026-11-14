@@ -397,7 +397,8 @@ class TestNegativeAuthenticationAndWebProtections(unittest.TestCase):
         self.assertFalse(is_valid_pdf_bytes(b"<html>not a pdf</html>"))
 
         # Verifica que Gemini API envia a chave via header x-goog-api-key e nunca na URL
-        with patch("src.editais.extractor_ai.GEMINI_API_KEY", "AIzaFakeTestKeyForUnitTestingOnly123456"), \
+        dummy_test_key = "fake_gemini_test_key_12345"
+        with patch("src.editais.extractor_ai.GEMINI_API_KEY", dummy_test_key), \
              patch("src.editais.extractor_ai.requests.post") as mock_post:
             mock_resp = MagicMock()
             mock_resp.json.return_value = {"candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}]}
@@ -408,7 +409,7 @@ class TestNegativeAuthenticationAndWebProtections(unittest.TestCase):
             called_url = mock_post.call_args[0][0]
             called_headers = mock_post.call_args[1]["headers"]
             self.assertNotIn("key=", called_url)
-            self.assertEqual(called_headers.get("x-goog-api-key"), "AIzaFakeTestKeyForUnitTestingOnly123456")
+            self.assertEqual(called_headers.get("x-goog-api-key"), dummy_test_key)
 
 
 if __name__ == "__main__":
